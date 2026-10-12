@@ -89,7 +89,12 @@ def main_menu():
                 for user in users:
                     display_user(user)
         elif choice == "3":
-            name = input("Enter name to search: ")
+            name = input("Enter name to search: ").strip()
+
+            if not name:
+                print("Please enter a name to search.")
+                continue
+
             users = fetch_all_users()
             if users:
                 search_users_by_name(users, name)
