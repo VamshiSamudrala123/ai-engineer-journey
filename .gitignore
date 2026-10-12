@@ -220,3 +220,7 @@ __marimo__/
 .streamlit/secrets.toml
 # Generated data files
 /exports/
+
+# Generated CSV files
+/exports/
+/day-01-python-api/exports/
