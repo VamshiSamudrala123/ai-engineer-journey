@@ -1,40 +1,21 @@
-# Python API Explorer
+# Python API Explorer (V2)
 
-This project is a simple Python application that allows users to explore user data from a public API. It prompts the user for an ID between 1 and 10 and retrieves information about the user, including their name, username, email, and company name.
+## Overview
+This project is a beginner-friendly Python application that interacts with a public API to fetch and display user data. It now includes additional features like viewing all users, searching by name, and exporting data to a CSV file.
 
 ## Features
-
-- Prompts the user for a valid ID.
-- Fetches user data from the API: `https://jsonplaceholder.typicode.com/users/{id}`.
-- Displays the user's name, username, email, and company name.
-- Handles invalid user IDs and network errors gracefully.
-- Sets a timeout for requests to ensure the application remains responsive.
+1. View user details by ID (1-10).
+2. View all users.
+3. Search users by name (case-insensitive, partial match).
+4. Export all users to a CSV file (`exports/users.csv`).
+5. Graceful error handling for invalid inputs and network issues.
 
 ## Requirements
-
 - Python 3.x
-- requests library
+- `requests` library
 
 ## Installation
-
-1. Clone the repository or download the project files.
-2. Navigate to the project directory.
-3. Install the required dependencies by running:
-
-```
-pip install -r requirements.txt
-```
-
-## Usage
-
-To run the application, execute the following command in your terminal:
-
-```
-python main.py
-```
-
-Follow the prompts to enter a user ID between 1 and 10, and the application will display the corresponding user information.
-
-## License
-
-This project is open-source and available for anyone to use and modify.
+1. Clone the repository.
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
