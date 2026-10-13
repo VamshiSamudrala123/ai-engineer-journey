@@ -139,6 +139,52 @@ class AgentTests(unittest.TestCase):
     def test_v2_cannot_access_task_tools(self):
         self.assertIn("error", self.agent.execute_tool("list_pending_tasks", {}))
 
+    def make_v4(self, confirm=None):
+        from tasks import TaskStore
+        from test_tasks import SAMPLE
+        return self.module.StudyAgent(self.client, "test-model", version=4,
+                                     task_store=TaskStore(SAMPLE), confirm=confirm)
+
+    def test_model_cannot_supply_its_own_confirmation(self):
+        agent = self.make_v4()
+        result = agent.execute_tool("mark_task_done", {"task_id": "a", "confirmed": True})
+        self.assertIn("error", result)
+        self.assertFalse(agent.task_store.all_tasks()[0]["done"])
+
+    def test_browser_update_waits_for_confirmation(self):
+        agent = self.make_v4()
+        result = agent.execute_tool("mark_task_done", {"task_id": "a"})
+        self.assertEqual(result["result"]["status"], "awaiting_confirmation")
+        self.assertFalse(agent.task_store.all_tasks()[0]["done"])
+        agent.resolve_update("a", approve=True)
+        self.assertTrue(agent.task_store.all_tasks()[0]["done"])
+        from tasks import TaskError
+        with self.assertRaises(TaskError):
+            agent.resolve_update("a", approve=True)
+
+    def test_cancelled_and_cleared_requests_do_not_update_tasks(self):
+        agent = self.make_v4()
+        agent.execute_tool("mark_task_done", {"task_id": "a"})
+        agent.resolve_update("a", approve=False)
+        agent.execute_tool("mark_task_done", {"task_id": "b"})
+        agent.clear()
+        self.assertEqual(agent.pending_updates, {})
+        self.assertFalse(agent.task_store.all_tasks()[0]["done"])
+        self.assertFalse(agent.task_store.all_tasks()[1]["done"])
+
+    def test_terminal_confirmation_controls_the_write(self):
+        for approved in (False, True):
+            confirm = Mock(return_value=approved)
+            agent = self.make_v4(confirm)
+            result = agent.execute_tool("mark_task_done", {"task_id": "a"})
+            self.assertEqual(agent.task_store.all_tasks()[0]["done"], approved)
+            self.assertEqual(result["result"]["status"], "completed" if approved else "cancelled")
+            self.assertEqual(confirm.call_args.args[0]["title"], "Read")
+
+    def test_v3_does_not_offer_write_tool(self):
+        agent = self.module.StudyAgent(self.client, "test-model", version=3)
+        self.assertIn("error", agent.execute_tool("mark_task_done", {"task_id": "tool-loop"}))
+
 
 if __name__ == "__main__":
     unittest.main()

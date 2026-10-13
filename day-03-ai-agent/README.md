@@ -1,7 +1,38 @@
 # Project 03: Study Planner Agent
 
-This project starts with a simple study-time calculator. The next checkpoints
-will let Gemini choose tools, read a task list, and request confirmed updates.
+An assistant that calculates study time, reads a small task list, makes a daily
+plan, and asks before marking work complete. It builds on Project 02's Gemini
+chatbot and adds a visible tool-calling loop.
+
+The four entry points stay available so each concept can be explored separately.
+
+| Version | Main idea | Run from the repository root |
+| --- | --- | --- |
+| V1 | Test a Python tool directly | `python day-03-ai-agent/v1.py` |
+| V2 | Let Gemini request the calculator | `python day-03-ai-agent/v2.py` |
+| V3 | Combine calculation, task retrieval, and planning | `python day-03-ai-agent/v3.py` |
+| V4 | Confirm updates; use a terminal or browser interface | `python day-03-ai-agent/v4.py` |
+
+## How the agent works
+
+```mermaid
+flowchart TD
+    U[Question] --> M[Gemini]
+    M --> C[Python controller]
+    C --> R[Calculator and task tools]
+    C --> P[Task completion preview]
+    P --> A[User confirmation]
+    A --> T[Task store]
+    R --> M
+    T --> M
+    M --> F[Answer]
+```
+
+Gemini selects a tool and supplies arguments. The application checks them
+against an approved registry, executes the function, and sends its result back.
+The tools do the arithmetic and read task facts. Gemini explains the results.
+The browser confirms updates after the answer; its next model turn receives
+the actual update result.
 
 ## V1: a tool without a model
 
@@ -70,3 +101,89 @@ The model explains this calculated plan; it does not invent task estimates.
 
 The task reader validates JSON before using it. Task text is treated as data.
 V3 reads the sample file and never marks anything complete.
+
+## V4: confirm changes
+
+```bash
+python day-03-ai-agent/v4.py
+```
+
+Ask: "Mark tool-loop as complete." The terminal shows the task title and ID.
+Only typing `yes` confirms the update. An empty answer or any other reply
+cancels it. The model cannot pass a `confirmed` argument to approve itself.
+
+V4 creates `tasks.local.json` beside the sample file on its first terminal run.
+It saves confirmed changes there, leaving `tasks.json` intact. The local copy
+is ignored by Git. Edit its estimates and titles to fit your own study plan.
+This file is intended for one local process at a time, not concurrent users.
+
+Start the browser interface from the same configured terminal:
+
+```bash
+python -m streamlit run day-03-ai-agent/web_app.py
+```
+
+Use **Confirm completion** or **Cancel** for each proposed update. You can inspect
+the requests and results under **Tools used**. Each visitor has a separate task
+list in session memory; refreshing or ending the session can lose that progress.
+**New chat** clears conversation and pending approvals while keeping task progress.
+**Reset sample tasks** restores the starting list and clears the chat.
+
+## What to read
+
+| File | Responsibility |
+| --- | --- |
+| `tools.py` | Study-time calculation and numeric validation |
+| `tasks.py` | Task validation, planning, previews, and storage |
+| `agent.py` | Tool schemas, dispatch, bounded model loop, and history |
+| `main.py` | Terminal input, configuration, and confirmation |
+| `web_app.py` | Chat, task sidebar, and confirmation buttons |
+| `test_*.py` | Tool, controller, persistence, SDK, and interface checks |
+
+## Check the project
+
+```bash
+python -m unittest discover -s day-03-ai-agent -p 'test_*.py' -v
+python -m compileall -q day-03-ai-agent
+git diff --check
+```
+
+The calculator, planner, controller, and update tests run without an API key.
+SDK and Streamlit tests require the installed dependencies but mock network
+responses. GitHub Actions runs the suite on Python 3.10 and 3.12. It does not
+need or receive an API key.
+
+For a live check, try these in V4:
+
+1. "I have 90 minutes a day for 5 days. Calculate my time and plan pending tasks."
+2. "Mark tool-loop as complete." Cancel first and check it is still pending.
+3. Repeat the update, confirm it, and ask which tasks are left.
+4. "Calculate study time for -10 minutes a day." Invalid inputs should be rejected.
+
+Live model answers can vary. Automated tests verify the application behavior,
+not the quality of every answer Gemini might produce.
+
+## Learning checkpoints
+
+- **V1:** Explain why input validation belongs inside the tool, not just the UI.
+- **V2:** Follow one request from the question to the tool result and final answer.
+- **V3:** Change a task estimate and inspect how it moves across study days.
+- **V4:** Cancel an update, then approve it, and inspect the saved local file.
+
+## Troubleshooting
+
+- **Missing key:** Set `GEMINI_API_KEY` in the terminal that launches the app.
+  The program reads the environment; it does not automatically load a `.env` file.
+- **Unavailable model:** Set `GEMINI_MODEL` to a function-calling model your account supports.
+- **Quota or connection error:** Check AI Studio usage and your connection before retrying.
+- **Invalid task file:** Check its JSON, unique IDs, positive whole-minute estimates,
+  and boolean `done` fields. Errors are reported without printing the file contents.
+- **Tool limit reached:** Break the request into smaller questions. In the terminal,
+  inspect pending tasks before retrying an update; already confirmed actions remain saved.
+
+## References
+
+- [Google Gen AI Python SDK](https://github.com/googleapis/python-genai)
+- [Gemini function calling](https://ai.google.dev/gemini-api/docs/function-calling)
+- [Available Gemini models](https://ai.google.dev/gemini-api/docs/models)
+- [Streamlit app testing](https://docs.streamlit.io/develop/api-reference/app-testing)

@@ -47,12 +47,23 @@ def tool_declarations(version=2):
                 parameters_json_schema=declarations[0].parameters_json_schema,
             ),
         ])
+    if version >= 4:
+        declarations.append(types.FunctionDeclaration(
+            name="mark_task_done",
+            description="Request completion of one task by ID. The user must confirm the specific update.",
+            parameters_json_schema={
+                "type": "object", "properties": {"task_id": {"type": "string"}},
+                "required": ["task_id"], "additionalProperties": False,
+            },
+        ))
     return declarations
 
 
 class StudyAgent:
     def __init__(self, client, model, max_rounds=5, max_tool_calls=8,
-                 version=2, task_store=None):
+                 version=2, task_store=None, confirm=None):
+        if version not in (2, 3, 4):
+            raise ValueError("Agent version must be 2, 3, or 4.")
         self.client = client
         self.model = model
         self.max_rounds = max_rounds
@@ -60,6 +71,8 @@ class StudyAgent:
         self.turns = []
         self.trace = []
         self.version = version
+        self.confirm = confirm
+        self.pending_updates = {}
         self.task_store = task_store if task_store is not None else (
             TaskStore.from_file() if version >= 3 else None
         )
@@ -73,6 +86,32 @@ class StudyAgent:
     def clear(self):
         self.turns.clear()
         self.trace.clear()
+        self.pending_updates.clear()
+
+    def mark_task_done(self, task_id):
+        task = self.task_store.prepare_completion(task_id)
+        if task["done"]:
+            return {"status": "already_done", "task": task}
+        if self.confirm is not None:
+            if self.confirm(task) is not True:
+                return {"status": "cancelled", "task": task}
+            return self.task_store.complete_task(task, confirmed=True)
+        self.pending_updates[task_id] = task
+        return {"status": "awaiting_confirmation", "task": task}
+
+    def resolve_update(self, task_id, approve):
+        if task_id not in self.pending_updates:
+            raise TaskError("This update is no longer pending.")
+        task = self.pending_updates.pop(task_id)
+        if approve is not True:
+            return {"status": "cancelled", "task": task}
+        result = self.task_store.complete_task(task, confirmed=True)
+        # The browser decision happens after the model turn. Record the actual
+        # result as a user event so the next answer sees what was approved.
+        self.turns.append([types.Content(role="user", parts=[types.Part.from_text(
+            text=f"Task update confirmed in the interface: {result}",
+        )])])
+        return result
 
     def execute_tool(self, name, arguments):
         registry = {"calculate_study_time": (calculate_study_time, {"minutes_per_day", "days"})}
@@ -81,6 +120,8 @@ class StudyAgent:
                 "list_pending_tasks": (self.task_store.list_pending_tasks, set()),
                 "build_study_plan": (self.task_store.build_study_plan, {"minutes_per_day", "days"}),
             })
+        if self.version >= 4:
+            registry["mark_task_done"] = (self.mark_task_done, {"task_id"})
         if name not in registry:
             return {"error": "This tool is not available."}
         function, expected = registry[name]

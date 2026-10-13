@@ -25,21 +25,20 @@ def run_terminal(agent):
 
     print("Study Planner Agent | /help, /clear, /exit")
     while True:
+        agent.trace = []
         try:
             question = input("\nYou: ").strip()
             if question.lower() in {"exit", "quit", "/exit", "/quit"}:
                 print("Goodbye!")
                 return 0
             if question.lower() == "/help":
-                print("Ask about study time. /clear resets chat; /exit closes the app.")
+                print("Ask about study time and pending tasks. /clear resets chat; /exit closes the app.")
                 continue
             if question.lower() == "/clear":
                 agent.clear()
                 print("Conversation cleared.")
                 continue
             answer = agent.ask(question)
-            for entry in agent.trace:
-                print(f"Tool: {entry['tool']} -> {entry.get('result', entry.get('error'))}")
             print(f"\nAssistant: {answer}")
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye!")
@@ -54,9 +53,18 @@ def run_terminal(agent):
             print("The request timed out. Try again.")
         except httpx.TransportError:
             print("Connection failed. Check your internet connection.")
+        finally:
+            # A confirmed write remains saved even if the next model request fails.
+            for entry in agent.trace:
+                print(f"Tool: {entry['tool']} -> {entry.get('result', entry.get('error'))}")
 
 
-def main(version=3):
+def confirm_update(task):
+    print(f"\nMark '{task['title']}' (ID: {task['id']}) as complete?")
+    return input("Type yes to confirm; anything else cancels: ").strip().lower() == "yes"
+
+
+def main(version=4):
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         print("Missing GEMINI_API_KEY. See day-03-ai-agent/README.md for setup.")
@@ -65,7 +73,7 @@ def main(version=3):
         from google import genai
         from google.genai import types
         from agent import StudyAgent
-        from tasks import TaskError
+        from tasks import TaskError, local_task_store
     except ImportError:
         print("Install dependencies: python -m pip install -r day-03-ai-agent/requirements.txt")
         return 1
@@ -73,7 +81,9 @@ def main(version=3):
     try:
         with genai.Client(api_key=key, vertexai=False,
                           http_options=types.HttpOptions(timeout=30_000)) as client:
-            return run_terminal(StudyAgent(client, model, version=version))
+            store = local_task_store() if version >= 4 else None
+            return run_terminal(StudyAgent(client, model, version=version,
+                                           task_store=store, confirm=confirm_update if version >= 4 else None))
     except KeyboardInterrupt:
         print("\nGoodbye!")
         return 0

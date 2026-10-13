@@ -2,12 +2,15 @@
 
 import copy
 import json
+import os
 from pathlib import Path
+import tempfile
 
 from tools import calculate_study_time
 
 
 SAMPLE_TASKS = Path(__file__).with_name("tasks.json")
+LOCAL_TASKS = Path(__file__).with_name("tasks.local.json")
 
 
 class TaskError(Exception):
@@ -44,6 +47,21 @@ def load_tasks(path):
         raise TaskError("Could not read the task file. Check its location and JSON format.") from None
 
 
+def local_task_store(path=LOCAL_TASKS):
+    """Make a personal copy once; never overwrite an existing task file."""
+    path = Path(path)
+    seed = load_tasks(SAMPLE_TASKS)
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            json.dump(seed, handle, indent=2)
+            handle.write("\n")
+    except FileExistsError:
+        pass
+    except OSError:
+        raise TaskError("Could not create the local task file. Check folder permissions.") from None
+    return TaskStore.from_file(path)
+
+
 class TaskStore:
     def __init__(self, tasks, path=None):
         self.tasks = copy.deepcopy(validate_tasks(tasks))
@@ -61,6 +79,51 @@ class TaskStore:
 
     def list_pending_tasks(self):
         return {"tasks": [task for task in self.all_tasks() if not task["done"]]}
+
+    def prepare_completion(self, task_id):
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise TaskError("Provide a nonempty task ID.")
+        for task in self.all_tasks():
+            if task["id"] == task_id:
+                return task
+        raise TaskError("No task has that ID. Read the task list first.")
+
+    def complete_task(self, expected_task, *, confirmed=False):
+        # Confirmation comes from the interface, never from model arguments.
+        if confirmed is not True:
+            raise TaskError("Task completion needs explicit confirmation.")
+        tasks = self.all_tasks()
+        for task in tasks:
+            if task["id"] == expected_task.get("id"):
+                if task != expected_task:
+                    raise TaskError("This task changed after the preview. Request a fresh update.")
+                if task["done"]:
+                    return {"status": "already_done", "task": task}
+                task["done"] = True
+                self._save(tasks)
+                return {"status": "completed", "task": copy.deepcopy(task)}
+        raise TaskError("This task was removed. Request a fresh update.")
+
+    def _save(self, tasks):
+        if self.path is not None:
+            temporary = None
+            try:
+                # Replace the whole file only after a complete JSON write.
+                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.path.parent,
+                                                 prefix=".tasks-", suffix=".tmp", delete=False) as handle:
+                    temporary = Path(handle.name)
+                    json.dump(tasks, handle, indent=2)
+                    handle.write("\n")
+                os.replace(temporary, self.path)
+            except OSError:
+                raise TaskError("Could not save tasks. Check folder permissions.") from None
+            finally:
+                if temporary is not None:
+                    try:
+                        temporary.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+        self.tasks = copy.deepcopy(tasks)
 
     def build_study_plan(self, minutes_per_day, days):
         available = calculate_study_time(minutes_per_day, days)
