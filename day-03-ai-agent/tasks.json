@@ -1,0 +1,7 @@
+[
+  {"id": "tool-loop", "title": "Trace one model-to-tool round trip", "estimated_minutes": 45, "done": false},
+  {"id": "validation", "title": "Practice rejecting invalid tool arguments", "estimated_minutes": 60, "done": false},
+  {"id": "agent-tests", "title": "Read and run the agent tests", "estimated_minutes": 90, "done": false},
+  {"id": "project-notes", "title": "Write down what each version adds", "estimated_minutes": 30, "done": false},
+  {"id": "calculator", "title": "Understand the study-time calculator", "estimated_minutes": 30, "done": true}
+]
