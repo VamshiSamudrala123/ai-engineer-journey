@@ -20,20 +20,44 @@ def api_error_message(code):
     return "Gemini could not complete the request. Please try again later."
 
 
-def run_chat(chat):
+def run_chat(chat, client, model, config):
     """Keep using the same SDK chat so earlier messages remain in context."""
     import httpx
     from google.genai import errors
 
-    print("My Gemini AI Chatbot")
-    print("Type exit or quit to finish. Memory lasts for this session.\n")
+    print("🤖 General AI Assistant V2")
+    print("Commands: /help, /clear, /exit")
+    print("Ask me anything!\n")
 
     while True:
         try:
+            
             message = input("You: ").strip()
-            if message.lower() in {"exit", "quit"}:
+            command = message.lower()
+
+            # Exit the chatbot
+            if command in {"exit", "quit", "/exit", "/quit"}:
                 print("Goodbye!")
                 return 0
+
+            # Display available commands
+            if command == "/help":
+                print("\nAvailable commands:")
+                print("/help  - Show available commands")
+                print("/clear - Reset conversation memory")
+                print("/exit  - Exit the chatbot\n")
+                continue
+
+            # Clear conversation history
+            if command == "/clear":
+                chat = client.chats.create(
+                    model=model,
+                    config=config,
+                )
+                print("Conversation memory cleared!\n")
+                continue
+
+            # Handle empty messages
             if not message:
                 print("Please enter a message.\n")
                 continue
@@ -80,18 +104,28 @@ def main():
             vertexai=False,
             http_options=types.HttpOptions(timeout=30_000),
         ) as client:
+            
+            config = types.GenerateContentConfig(
+                system_instruction=(
+                    "You are a friendly, helpful general-purpose "
+                    "AI assistant. Help with everyday questions, "
+                    "learning, writing, brainstorming, planning, "
+                    "programming, and problem-solving. "
+                    "Give clear answers with useful examples. "
+                    "Ask clarifying questions when necessary. "
+                    "Acknowledge uncertainty and avoid making up facts. "
+                    "Do not claim access to real-time information "
+                    "unless tools explicitly provide it."
+                ),
+                max_output_tokens=1024,
+            )
+
             chat = client.chats.create(
                 model=model,
-                config=types.GenerateContentConfig(
-                    system_instruction=(
-                        "You are a helpful assistant. Explain clearly and use simple "
-                        "examples when teaching Python or AI concepts."
-                    ),
-                    max_output_tokens=1024,
-                ),
+                config=config,
             )
             print(f"Model: {model}\n")
-            return run_chat(chat)
+            return run_chat(chat, client, model, config)
     except KeyboardInterrupt:
         print("\nGoodbye!")
         return 0
