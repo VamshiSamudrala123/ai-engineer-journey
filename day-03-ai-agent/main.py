@@ -56,7 +56,7 @@ def run_terminal(agent):
             print("Connection failed. Check your internet connection.")
 
 
-def main():
+def main(version=3):
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         print("Missing GEMINI_API_KEY. See day-03-ai-agent/README.md for setup.")
@@ -65,6 +65,7 @@ def main():
         from google import genai
         from google.genai import types
         from agent import StudyAgent
+        from tasks import TaskError
     except ImportError:
         print("Install dependencies: python -m pip install -r day-03-ai-agent/requirements.txt")
         return 1
@@ -72,12 +73,15 @@ def main():
     try:
         with genai.Client(api_key=key, vertexai=False,
                           http_options=types.HttpOptions(timeout=30_000)) as client:
-            return run_terminal(StudyAgent(client, model))
+            return run_terminal(StudyAgent(client, model, version=version))
     except KeyboardInterrupt:
         print("\nGoodbye!")
         return 0
     except ValueError:
         print("Could not initialize Gemini. Check your configuration.")
+        return 1
+    except TaskError as error:
+        print(error)
         return 1
 
 

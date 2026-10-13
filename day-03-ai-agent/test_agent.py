@@ -123,6 +123,22 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.agent.turns, [])
         self.assertEqual(self.agent.trace, [])
 
+    def test_v3_combines_multiple_tools(self):
+        self.agent = self.module.StudyAgent(self.client, "test-model", version=3)
+        self.client.models.generate_content.side_effect = [
+            reply(tool_call(), tool_call("list_pending_tasks", {}, "tasks")),
+            reply(tool_call("build_study_plan", {"minutes_per_day": 90, "days": 5}, "plan")),
+            reply(FakePart(text="Here is your study plan.")),
+        ]
+        self.assertEqual(self.agent.ask("Plan my week."), "Here is your study plan.")
+        self.assertEqual([entry["tool"] for entry in self.agent.trace], [
+            "calculate_study_time", "list_pending_tasks", "build_study_plan",
+        ])
+        self.assertEqual(len(self.agent.trace[-1]["result"]["sessions"]), 5)
+
+    def test_v2_cannot_access_task_tools(self):
+        self.assertIn("error", self.agent.execute_tool("list_pending_tasks", {}))
+
 
 if __name__ == "__main__":
     unittest.main()

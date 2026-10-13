@@ -3,6 +3,7 @@
 from google.genai import types
 
 from tools import calculate_study_time
+from tasks import TaskError, TaskStore
 
 
 SYSTEM_INSTRUCTION = (
@@ -19,8 +20,8 @@ class AgentError(Exception):
     """A failure that can be explained without exposing request details."""
 
 
-def tool_declarations():
-    return [types.FunctionDeclaration(
+def tool_declarations(version=2):
+    declarations = [types.FunctionDeclaration(
         name="calculate_study_time",
         description="Calculate available study time using whole minutes and days.",
         parameters_json_schema={
@@ -33,19 +34,38 @@ def tool_declarations():
             "additionalProperties": False,
         },
     )]
+    if version >= 3:
+        declarations.extend([
+            types.FunctionDeclaration(
+                name="list_pending_tasks",
+                description="Read unfinished tasks and their estimated minutes.",
+                parameters_json_schema={"type": "object", "properties": {}, "additionalProperties": False},
+            ),
+            types.FunctionDeclaration(
+                name="build_study_plan",
+                description="Allocate pending tasks in file order across study days; split long tasks as needed.",
+                parameters_json_schema=declarations[0].parameters_json_schema,
+            ),
+        ])
+    return declarations
 
 
 class StudyAgent:
-    def __init__(self, client, model, max_rounds=5, max_tool_calls=8):
+    def __init__(self, client, model, max_rounds=5, max_tool_calls=8,
+                 version=2, task_store=None):
         self.client = client
         self.model = model
         self.max_rounds = max_rounds
         self.max_tool_calls = max_tool_calls
         self.turns = []
         self.trace = []
+        self.version = version
+        self.task_store = task_store if task_store is not None else (
+            TaskStore.from_file() if version >= 3 else None
+        )
         self.config = types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
-            tools=[types.Tool(function_declarations=tool_declarations())],
+            tools=[types.Tool(function_declarations=tool_declarations(version))],
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             max_output_tokens=2048,
         )
@@ -55,13 +75,20 @@ class StudyAgent:
         self.trace.clear()
 
     def execute_tool(self, name, arguments):
-        if name != "calculate_study_time":
+        registry = {"calculate_study_time": (calculate_study_time, {"minutes_per_day", "days"})}
+        if self.version >= 3:
+            registry.update({
+                "list_pending_tasks": (self.task_store.list_pending_tasks, set()),
+                "build_study_plan": (self.task_store.build_study_plan, {"minutes_per_day", "days"}),
+            })
+        if name not in registry:
             return {"error": "This tool is not available."}
-        if not isinstance(arguments, dict) or set(arguments) != {"minutes_per_day", "days"}:
-            return {"error": "Expected only minutes_per_day and days."}
+        function, expected = registry[name]
+        if not isinstance(arguments, dict) or set(arguments) != expected:
+            return {"error": "Arguments do not match this tool's declared inputs."}
         try:
-            return {"result": calculate_study_time(**arguments)}
-        except ValueError as error:
+            return {"result": function(**arguments)}
+        except (ValueError, TaskError) as error:
             return {"error": str(error)}
 
     def ask(self, question):

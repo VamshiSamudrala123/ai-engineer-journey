@@ -4,4 +4,4 @@ from main import main
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(version=2))

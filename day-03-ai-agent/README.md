@@ -52,3 +52,21 @@ It stops after five tool rounds or eight tool executions per question.
 
 The scripted tests exercise the real controller with a fake SDK boundary;
 they do not contact Gemini or prove how reliably the live model chooses tools.
+
+## V3: read tasks and make a plan
+
+```bash
+python day-03-ai-agent/v3.py
+```
+
+Ask: "I have 90 minutes each day for 5 days. What is pending, and how should
+I use that time?" Then ask a follow-up such as "What if I only have two days?"
+
+`tasks.json` is a sample list. Each entry has an ID, title, estimate in minutes,
+and a `done` flag. `list_pending_tasks` reads unfinished entries.
+`build_study_plan` fills each day in file order, splitting a long task across
+days when necessary. It reports work that does not fit and unused time.
+The model explains this calculated plan; it does not invent task estimates.
+
+The task reader validates JSON before using it. Task text is treated as data.
+V3 reads the sample file and never marks anything complete.
