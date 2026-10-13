@@ -60,7 +60,12 @@ class ChatbotTests(unittest.TestCase):
     def run_with_input(self, chat, inputs):
         output = io.StringIO()
         with patch("builtins.input", side_effect=inputs), contextlib.redirect_stdout(output):
-            result = chatbot.run_chat(chat)
+            result = chatbot.run_chat(
+                chat,
+                self.client,
+                chatbot.DEFAULT_MODEL,
+                types.SimpleNamespace(),
+            )
         return result, output.getvalue()
 
     def test_missing_key_stops_before_creating_client(self):
@@ -94,6 +99,68 @@ class ChatbotTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(chatbot.main(), 0)
         self.assertEqual(self.client.chats.create.call_args.kwargs["model"], "custom-model")
+
+
+    def test_help_command_does_not_call_gemini(self):
+        chat = Mock()
+
+        result, output = self.run_with_input(
+            chat,
+            ["/help", "exit"],
+        )
+
+        self.assertEqual(result, 0)
+        self.assertIn("/help", output)
+        self.assertIn("/clear", output)
+        self.assertIn("/exit", output)
+
+        # Showing help should never contact Gemini.
+        chat.send_message.assert_not_called()
+        self.client.chats.create.assert_not_called()
+
+    def test_clear_creates_a_fresh_chat_session(self):
+        old_chat = Mock()
+        old_chat.send_message.return_value = (
+            types.SimpleNamespace(text="Remembered!")
+        )
+
+        new_chat = Mock()
+        new_chat.send_message.return_value = (
+            types.SimpleNamespace(text="I don't know.")
+        )
+
+        # When /clear runs, the fake client creates a new chat.
+        self.client.chats.create.return_value = new_chat
+
+        result, output = self.run_with_input(
+            old_chat,
+            [
+                "Remember the code kiwi42",
+                "/clear",
+                "What code did I share?",
+                "exit",
+            ],
+        )
+
+        self.assertEqual(result, 0)
+
+        # The first message went to the original chat.
+        old_chat.send_message.assert_called_once_with(
+            "Remember the code kiwi42"
+        )
+
+        # /clear created exactly one new chat.
+        self.client.chats.create.assert_called_once()
+        kwargs = self.client.chats.create.call_args.kwargs
+        self.assertEqual(kwargs["model"], chatbot.DEFAULT_MODEL)
+        self.assertIn("config", kwargs)
+
+        # The next message went to the NEW chat.
+        new_chat.send_message.assert_called_once_with(
+            "What code did I share?"
+        )
+
+        self.assertIn("Conversation memory cleared!", output)
 
     def test_blank_messages_make_no_api_calls(self):
         chat = Mock()
