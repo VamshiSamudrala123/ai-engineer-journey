@@ -18,6 +18,7 @@ MAX_FILE_BYTES = 12 * 1024 * 1024
 CHUNK_SIZE = 900
 CHUNK_OVERLAP = 150
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 
 
 @dataclass(frozen=True)
@@ -202,21 +203,27 @@ def ask_agent(
     Evidence returned to the UI is recorded from actual tool calls, not
     citations invented by the language model.
     """
+    if provider not in ("Gemini", "Ollama"):
+        raise ValueError("Unknown model provider.")
+    if provider == "Gemini" and not (api_key or "").strip():
+        raise ValueError("Add your Google API key in the sidebar or Streamlit secrets.")
+    model = model.strip()
+    if provider == "Gemini":
+        model = model.removeprefix("gemini/") or DEFAULT_GEMINI_MODEL
+    elif not model:
+        raise ValueError("Enter an Ollama model name.")
+
     from crewai import Agent, Crew, LLM, Task
     from crewai.tools import tool
 
-    if provider == "OpenAI":
-        if not api_key:
-            raise ValueError("Add an OpenAI API key to run the agent.")
-        llm = LLM(model=f"openai/{model}", api_key=api_key, temperature=0.1)
-    elif provider == "Ollama":
+    if provider == "Gemini":
+        llm = LLM(model=f"gemini/{model}", api_key=api_key.strip(), timeout=90)
+    else:
         llm = LLM(
             model=f"ollama/{model}",
             base_url="http://localhost:11434",
             temperature=0.1,
         )
-    else:
-        raise ValueError("Unknown model provider.")
 
     evidence: dict[str, Evidence] = {}
 

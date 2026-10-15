@@ -2,7 +2,7 @@ import hashlib
 import json
 import os
 import streamlit as st
-from agentic_rag import DocumentIndex, ask_agent, evaluate_retrieval, read_pdfs, split_pages
+from agentic_rag import DEFAULT_GEMINI_MODEL, DocumentIndex, ask_agent, evaluate_retrieval, read_pdfs, split_pages
 
 st.set_page_config(page_title="Papertrail | PDF research", page_icon="📚", layout="wide")
 st.title("📚 Papertrail")
@@ -20,13 +20,25 @@ def clear():
 with st.sidebar:
     st.header("Documents")
     uploads = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True, help="Up to 8 files, 12 MB each")
-    provider = st.selectbox("Answer mode", ["OpenAI", "Ollama", "Search only"])
-    model = st.text_input("Model", value="gpt-4o-mini" if provider == "OpenAI" else "llama3.2") if provider != "Search only" else ""
-    try:
-        default_key = st.secrets.get("OPENAI_API_KEY", "")
-    except Exception:
-        default_key = ""
-    api_key = st.text_input("OpenAI API key", value=os.environ.get("OPENAI_API_KEY", default_key), type="password") if provider == "OpenAI" else None
+    provider = st.selectbox("Answer mode", ["Gemini", "Ollama", "Search only"])
+    model = ""
+    api_key = None
+    if provider == "Gemini":
+        model = st.text_input("Model", value=DEFAULT_GEMINI_MODEL, key="gemini_model")
+        try:
+            secret_key = st.secrets.get("GOOGLE_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
+        except FileNotFoundError:
+            secret_key = ""
+        configured_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") or secret_key
+        entered_key = st.text_input("Google API key", type="password", key="google_api_key", help="Optional if GOOGLE_API_KEY or GEMINI_API_KEY is already configured.")
+        api_key = entered_key.strip() or configured_key
+        if api_key:
+            st.caption("Google API key configured.")
+        else:
+            st.caption("Add a key from Google AI Studio to get Gemini answers.")
+        st.caption("Your question and retrieved passages are sent to Google. API usage uses your Google quota.")
+    elif provider == "Ollama":
+        model = st.text_input("Model", value="llama3.2", key="ollama_model")
     k = st.slider("Passages per search", 2, 10, 5)
     if st.button("Clear workspace"):
         clear()
@@ -99,7 +111,9 @@ with chat:
                             st.caption(source["text"])
                 st.session_state.messages.append({"role": "assistant", "content": answer, "evidence": evidence})
             except Exception as exc:
-                st.error(f"Question failed: {exc}")
+                # Provider errors can include request details. Keep credentials out of the UI.
+                detail = str(exc).replace(str(api_key), "[redacted]") if api_key else str(exc)
+                st.error(f"Question failed: {detail}")
     if st.session_state.messages:
         st.download_button("Export chat history", json.dumps(st.session_state.messages, indent=2), "chat.json", "application/json")
 
