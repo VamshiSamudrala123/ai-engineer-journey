@@ -1,55 +1,76 @@
-# Papertrail — Agentic RAG for PDFs
+# Papertrail
 
-An end-to-end PDF research app inspired by [Aman Kharwal's walkthrough](https://amanxai.com/2026/07/08/build-an-end-to-end-agentic-rag-system/). I wanted to make the document search process inspectable instead of trusting a model's answer at face value.
+Ask questions across PDFs and check the passages behind each answer. A CrewAI agent searches a session-scoped Chroma index and uses **Gemini 3.8 Flash** (`gemini-3.8-flash`) to explain what it finds.
 
-## Features
+Inspired by [Aman Kharwal's Agentic RAG walkthrough](https://amanxai.com/2026/07/08/build-an-end-to-end-agentic-rag-system/), with a Streamlit interface, multiple documents, page citations, chat export, and retrieval evaluation.
 
-- Upload multiple **text-based PDFs** (up to 8, 12 MB each).
-- Page-aware text extraction, overlapping chunks, MiniLM embeddings and ChromaDB vector search.
-- CrewAI agent can invoke document search tools repeatedly before answering.
-- Answers have citation markers; expand actual filename/page/excerpt evidence below.
-- Conversation history stays in the browser session and can be exported as JSON.
-- Retrieval evaluation: label queries and compute Hit@k and MRR@k, with results export.
-- Choose OpenAI, local Ollama, or a search-only mode that needs no LLM key.
+## Run locally
 
-## Run it locally
+Use Python 3.11 or 3.12.
 
-Python 3.11 or 3.12 recommended.
+```bash
+git clone https://github.com/VamshiSamudrala123/papertrail.git
+cd papertrail
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+streamlit run app.py
+```
 
-1. Clone https://github.com/VamshiSamudrala123/ai-engineer-journey
-2. Change directory into agentic-rag-studio.
-3. Create and activate a Python virtual environment.
-4. Install with: python -m pip install -r requirements.txt
-5. Start: streamlit run app.py
-6. Upload PDFs and select an answer provider in the sidebar.
+On Windows, activate with `.venv\Scripts\activate`.
 
-For OpenAI: paste a valid API key into the sidebar or put it in a local .streamlit/secrets.toml (use the example file as a template). Do NOT commit keys. API usage may cost money.
+Upload up to eight text-based PDFs, 12 MB each. The first run downloads `sentence-transformers/all-MiniLM-L6-v2`; indexing runs locally on the app server. Scanned PDFs need OCR first.
 
-For Ollama: install Ollama, pull the llama3.2 model with 'ollama pull llama3.2', and ensure the Ollama server is running on localhost:11434. Ollama works for local installations, not a remote Community Cloud app.
+## Connect Gemini
 
-The first run downloads the sentence embedding model. Local CPU works for a few PDFs but can be slow.
+Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey). Enter it in the sidebar's password field, set `GOOGLE_API_KEY` or `GEMINI_API_KEY` in your environment, or copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and add it there.
 
-## Evaluate search
+```toml
+GOOGLE_API_KEY = "your-key"
+```
 
-Use the Retrieval evaluation tab, with one JSON object per line, such as:
+The sidebar key takes priority. Otherwise environment variables take priority over Streamlit secrets; `GOOGLE_API_KEY` is checked before `GEMINI_API_KEY` within each source. Keys stay out of chat exports and should never be committed.
 
-    {"question":"What was revenue?","expected_source":"annual.pdf","expected_text":"revenue"}
-    {"question":"Which risks are mentioned?","expected_source":"annual.pdf"}
+Gemini receives the question, recent conversation, and passages retrieved by the agent. Embeddings remain local. Requests use your Google account's quota and billing. The model field is editable if you need another available Gemini model; there is no silent fallback to another provider. See [Google's model page](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash) for availability and [CrewAI's provider setup](https://docs.crewai.com/en/concepts/llms) for the integration.
 
-At least one expected label is required. A hit means a single returned passage matches every provided label. Hit@k = fraction of questions with a hit in the first k results. MRR@k = mean reciprocal rank of the first relevant result. These are **retrieval** metrics, not answer quality scores; human-labeled examples matter.
+For local answers with Ollama, run `ollama pull llama3.2` and start Ollama on `localhost:11434`. Search only mode needs no language model or API key.
 
-Run tests: python -m pytest tests -q (install pytest).
+## What's included
+
+- Page-aware PDF chunks, MiniLM embeddings, and Chroma semantic search.
+- A CrewAI agent that can search repeatedly before answering.
+- Citation markers with expandable filenames, page numbers, and source passages.
+- Session chat history and JSON export.
+- A retrieval evaluation tab with Hit@k, MRR@k, and result export.
+
+## Evaluate retrieval
+
+Paste one JSON object per line into the evaluation tab:
+
+```jsonl
+{"question":"What was revenue?","expected_source":"annual.pdf","expected_text":"revenue"}
+{"question":"Which risks are mentioned?","expected_source":"annual.pdf"}
+```
+
+Each question needs at least one expected label. A hit requires a single passage to match every provided label. Hit@k measures the fraction of questions with a hit among the first k passages; MRR@k averages the reciprocal rank of the first hit. These measure retrieval, not answer quality.
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+```
+
+The tests use doubles for the agent and index and do not spend API credits. For a live check, upload a short PDF, ask a question with a known answer, inspect its page citation, then ask something the PDF does not cover.
 
 ## Deploy on Streamlit Community Cloud
 
-1. Open https://share.streamlit.io and create a new GitHub-backed app.
-2. Select repository VamshiSamudrala123/ai-engineer-journey, branch main, entrypoint agentic-rag-studio/app.py.
-3. Set Python 3.11 or 3.12 if the deploy interface allows it.
-4. In the app's Secrets settings, enter OPENAI_API_KEY = "your-key", or type your key into the app sidebar. Never push it to GitHub.
-5. Deploy and test with a text-based PDF. The free instance may have limited RAM for embedding models.
+1. Open [Streamlit Community Cloud](https://share.streamlit.io/).
+2. Select `VamshiSamudrala123/papertrail`, branch `main`, entrypoint `app.py`.
+3. Choose Python 3.11 or 3.12.
+4. Add `GOOGLE_API_KEY = "your-key"` under the app's Secrets settings, or enter your key in the sidebar at runtime.
+5. Deploy, upload a small PDF, and check a cited answer.
 
-## Design notes and limitations
+A shared server key lets visitors use its quota. For a public demo, leave it unset and have visitors enter their own keys. Ollama requires a server on the same machine, so use Gemini or Search only on Community Cloud. The embedding model and dependencies can exceed small hosting instances' memory limits.
 
-Text extraction preserves the page number. Semantic search uses sentence-transformers/all-MiniLM-L6-v2 and an in-memory ChromaDB collection. CrewAI builds a tool-using retrieval agent; only actually retrieved evidence is shown in the UI. The LLM may still misinterpret documents or produce inaccurate citation claims, so verify source excerpts. PDFs are untrusted content. Scanned PDFs need OCR. Document collections and chats are session-only, not production persistence. A production release also needs authentication, upload security, quotas, and systematic groundedness evaluation.
+## Limits
 
-Project files: app.py (UI), agentic_rag.py (core), tests/test_core.py (tests), requirements.txt (dependencies), .streamlit (configuration).
+Collections and chat history are temporary and disappear when the session ends. The agent may misread a passage or attach an inaccurate citation; always check the excerpts. Source passages shown in the interface come from actual searches, but their presence does not prove every answer claim. PDF content is treated as untrusted data. This demo has no authentication, persistent storage, OCR, or grounded-answer scoring.
