@@ -1692,3 +1692,34 @@ button:focus-visible,input:focus-visible {
     transition-duration:.01ms!important
   }
 }
+
+/* Soft loading animation for live banking charts */
+
+.insight-skeleton {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    #eef0f8 25%,
+    #fafbff 50%,
+    #eef0f8 75%
+  );
+  background-size: 200% 100%;
+  animation: insight-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes insight-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .insight-skeleton {
+    animation: none;
+  }
+}
