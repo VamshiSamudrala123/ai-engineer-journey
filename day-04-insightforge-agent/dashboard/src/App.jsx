@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   Activity, ArrowDownLeft, ArrowRight, ArrowUpRight,
@@ -95,14 +95,122 @@ function MetricCard({ icon: Icon, eyebrow, value, sub, variant, delay = 0, reduc
   </motion.div>
 }
 
+
 function MetricGrid({ reduceMotion }) {
-  return <div className="metric-grid">
-    <MetricCard icon={Activity} eyebrow="Transactions" value={fmt(dataset.transactions)} sub="18-day dataset window" delay={.08} reduceMotion={reduceMotion} />
-    <MetricCard icon={WalletCards} eyebrow="Accounts" value={fmt(dataset.accounts)} sub="Synthetic account records" delay={.14} reduceMotion={reduceMotion} />
-    <MetricCard icon={Fingerprint} eyebrow="Labeled transactions" value={fmt(dataset.labels)} sub="0.102% of transactions" delay={.20} reduceMotion={reduceMotion} />
-    <MetricCard icon={Globe2} eyebrow="Currencies" value={fmt(dataset.currencies)} sub="Payment currency categories" delay={.26} reduceMotion={reduceMotion} variant="emphasis" />
-  </div>
+  const [overview, setOverview] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadOverview() {
+      try {
+        const response = await fetch('/api/overview', {
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        setOverview(data)
+        setError('')
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setError(
+            'Unable to load live data. Check that FastAPI is running.'
+          )
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadOverview()
+
+    return () => controller.abort()
+  }, [])
+
+  const displayValue = (field) => {
+    if (loading) return '···'
+    if (!overview) return '—'
+    return fmt(overview[field])
+  }
+
+  const statusText = loading
+    ? 'Loading live data…'
+    : error
+      ? 'Connection unavailable'
+      : 'Live · DuckDB'
+
+  const labelRate = overview
+    ? (
+        overview.laundering_label_count /
+        overview.transaction_count *
+        100
+      ).toFixed(3)
+    : null
+
+  return (
+    <>
+      <div className="metric-grid">
+        <MetricCard
+          icon={Activity}
+          eyebrow="Transactions"
+          value={displayValue('transaction_count')}
+          sub={statusText}
+          delay={0.08}
+          reduceMotion={reduceMotion}
+        />
+
+        <MetricCard
+          icon={WalletCards}
+          eyebrow="Accounts"
+          value={displayValue('account_count')}
+          sub={statusText}
+          delay={0.14}
+          reduceMotion={reduceMotion}
+        />
+
+        <MetricCard
+          icon={Fingerprint}
+          eyebrow="Labeled transactions"
+          value={displayValue('laundering_label_count')}
+          sub={
+            labelRate
+              ? `${labelRate}% of transactions · Live`
+              : statusText
+          }
+          delay={0.20}
+          reduceMotion={reduceMotion}
+        />
+
+        <MetricCard
+          icon={Globe2}
+          eyebrow="Currencies"
+          value={displayValue('payment_currency_count')}
+          sub={statusText}
+          delay={0.26}
+          reduceMotion={reduceMotion}
+          variant="emphasis"
+        />
+      </div>
+
+      {error && (
+        <div className="page-footnote" role="alert">
+          <ShieldCheck size={15} />
+          {error}
+        </div>
+      )}
+    </>
+  )
 }
+
 
 function Hero({ onExplore, reduceMotion }) {
   return <motion.section className="hero" initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, ease: easing }}>
@@ -127,29 +235,233 @@ function Segment({ value, onChange }) {
   return <div className="segmented" role="group" aria-label="Chart measure"><button className={value === 'volume' ? 'selected' : ''} onClick={() => onChange('volume')}>Volume</button><button className={value === 'rate' ? 'selected' : ''} onClick={() => onChange('rate')}>Label rate</button></div>
 }
 
+
 function PaymentChart({ compact = false }) {
   const [measure, setMeasure] = useState('volume')
   const [query, setQuery] = useState('')
-  const sorted = useMemo(() => [...payments]
-    .filter(item => `${item.format} ${item.currency}`.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => (measure === 'volume' ? b.count - a.count : b.rate - a.rate)), [measure, query])
-  const max = Math.max(...sorted.map(item => measure === 'volume' ? item.count : item.rate), 1)
+  const [payments, setPayments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadPayments() {
+      try {
+        const response = await fetch('/api/payments', {
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        if (!Array.isArray(data)) {
+          throw new Error('Unexpected payment response')
+        }
+
+        setPayments(data)
+        setError('')
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          setError(
+            'Could not load payment data. Check the Python API.'
+          )
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadPayments()
+
+    return () => controller.abort()
+  }, [])
+
+  const sorted = useMemo(() => {
+    return [...payments]
+      .filter(item =>
+        `${item.payment_format} ${item.currency}`
+          .toLowerCase()
+          .includes(query.toLowerCase())
+      )
+      .sort((a, b) =>
+        measure === 'volume'
+          ? b.transaction_count - a.transaction_count
+          : b.labeled_percentage - a.labeled_percentage
+      )
+  }, [payments, measure, query])
+
   const visible = compact ? sorted.slice(0, 6) : sorted
-  return <div className="surface chart-card">
-    <div className="card-heading"><div><span className="overline">TRANSACTION PATTERNS</span><h3>Payment landscape</h3><p>{compact ? 'A clearer view of the busiest payment groups.' : 'Top 10 payment-format and currency groups from verified data.'}</p></div></div>
-    <div className="chart-toolbar"><Segment value={measure} onChange={setMeasure} />{!compact && <label className="search-field"><Search size={15}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Filter groups" aria-label="Filter payment groups" /></label>}</div>
-    <div className="bar-chart" aria-label={`Payment ${measure} chart`}>
-      {visible.length ? visible.map(item => {
-        const amount = measure === 'volume' ? item.count : item.rate
-        return <div className="bar-row" key={`${item.format}-${item.currency}`}>
-          <div className="bar-label"><span>{item.format}</span><small>{item.currency}</small></div>
-          <div className="bar-track"><motion.div layout transition={{ type: 'spring', stiffness: 230, damping: 29 }} className={`bar-fill ${item.format === 'ACH' ? 'bar-highlight' : ''}`} style={{ width: `${Math.max(1, amount / max * 100)}%` }} /></div>
-          <span className="bar-value">{measure === 'volume' ? fmt(item.count) : `${item.rate.toFixed(3)}%`}</span>
+
+  const getValue = item =>
+    measure === 'volume'
+      ? item.transaction_count
+      : item.labeled_percentage
+
+  const max = Math.max(
+    ...sorted.map(getValue),
+    0.001
+  )
+
+  return (
+    <div className="surface chart-card">
+      <div className="card-heading">
+        <div>
+          <span className="overline">
+            TRANSACTION PATTERNS
+          </span>
+          <h3>Payment landscape</h3>
+          <p>
+            {compact
+              ? 'Explore payment activity across the dataset.'
+              : 'Top 10 payment-format and currency groups from DuckDB.'}
+          </p>
         </div>
-      }) : <div className="empty-search">No matching payment groups.</div>}
+      </div>
+
+      <div className="chart-toolbar">
+        <Segment
+          value={measure}
+          onChange={setMeasure}
+        />
+
+        {!compact && (
+          <label className="search-field">
+            <Search size={15} />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Filter groups"
+              aria-label="Filter payment groups"
+            />
+          </label>
+        )}
+      </div>
+
+      <div
+        className="bar-chart"
+        aria-label={`Payment ${measure} chart`}
+        aria-busy={loading}
+      >
+        {loading ? (
+          Array.from(
+            { length: compact ? 6 : 10 },
+            (_, index) => (
+              <div
+                className="bar-row"
+                key={index}
+                aria-hidden="true"
+              >
+                <div className="bar-label">
+                  <span
+                    className="insight-skeleton"
+                    style={{
+                      width: '70%',
+                      height: 13,
+                      display: 'block',
+                    }}
+                  />
+                </div>
+
+                <div className="bar-track">
+                  <div
+                    className="insight-skeleton"
+                    style={{
+                      width: `${90 - index * 7}%`,
+                      height: '100%',
+                    }}
+                  />
+                </div>
+
+                <span className="bar-value">
+                  <span
+                    className="insight-skeleton"
+                    style={{
+                      width: 52,
+                      height: 13,
+                      display: 'inline-block',
+                    }}
+                  />
+                </span>
+              </div>
+            )
+          )
+        ) : error ? (
+          <div className="empty-search" role="alert">
+            {error}
+          </div>
+        ) : visible.length ? (
+          visible.map(item => {
+            const amount = getValue(item)
+            const width = amount === 0
+              ? 0
+              : Math.max(1, amount / max * 100)
+
+            return (
+              <div
+                className="bar-row"
+                key={`${item.payment_format}-${item.currency}`}
+              >
+                <div className="bar-label">
+                  <span>{item.payment_format}</span>
+                  <small>{item.currency}</small>
+                </div>
+
+                <div className="bar-track">
+                  <motion.div
+                    layout
+                    initial={{ width: 0 }}
+                    animate={{ width: `${width}%` }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 230,
+                      damping: 29,
+                    }}
+                    className={`bar-fill ${
+                      item.payment_format === 'ACH'
+                        ? 'bar-highlight'
+                        : ''
+                    }`}
+                  />
+                </div>
+
+                <span className="bar-value">
+                  {measure === 'volume'
+                    ? fmt(item.transaction_count)
+                    : `${item.labeled_percentage.toFixed(3)}%`}
+                </span>
+              </div>
+            )
+          })
+        ) : (
+          <div className="empty-search">
+            No matching payment groups.
+          </div>
+        )}
+      </div>
+
+      <div className="chart-foot">
+        <span>
+          <i className="legend-dot" />
+          {error
+            ? 'Connection unavailable'
+            : loading
+              ? 'Loading live data'
+              : 'Live · DuckDB'}
+        </span>
+
+        <span>
+          <i className="legend-dot blue" />
+          ACH highlighted
+        </span>
+      </div>
     </div>
-    <div className="chart-foot"><span><i className="legend-dot"/> Transaction groups</span><span><i className="legend-dot blue"/> ACH highlighted</span></div>
-  </div>
+  )
 }
 
 function AccountSnapshot({ onExplore }) {
@@ -171,7 +483,7 @@ function Overview({ go, reduceMotion }) {
     <MetricGrid reduceMotion={reduceMotion}/>
     <div className="analysis-grid"><PaymentChart compact/><AccountSnapshot onExplore={() => go('accounts')}/></div>
     <InsightNote />
-    <div className="page-footnote"><ShieldCheck size={15}/> All figures shown are a static preview from the synthetic dataset. Live queries and AI chat will be connected in the next development stage.</div>
+    <div className="page-footnote"><ShieldCheck size={15}/> Overview metrics are loaded live from DuckDB. Payment charts and account details remain verified previews until the next checkpoint..</div>
   </div>
 }
 
