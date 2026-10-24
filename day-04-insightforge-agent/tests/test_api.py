@@ -98,6 +98,73 @@ class TestInsightForgeAPI(unittest.TestCase):
         finally:
             get_payment_data.cache_clear()
 
+    
+    @patch("api.execute_tool")
+    def test_account_investigation_success(self, mock_tool):
+        mock_tool.return_value = {
+            "bank_id": 3208,
+            "account_number": "8000F4580",
+            "total_transactions": 3,
+            "incoming_transactions": 0,
+            "outgoing_transactions": 3,
+            "self_transfers": 0,
+            "labeled_transactions": 0,
+        }
+
+        response = self.client.post(
+            "/api/accounts/investigate",
+            json={
+                "bank_id": 3208,
+                "account_number": "8000F4580",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["outgoing_transactions"], 3
+        )
+
+        mock_tool.assert_called_once_with(
+            "investigate_account",
+            {
+                "bank_id": 3208,
+                "account_number": "8000F4580",
+            },
+        )
+
+    @patch("api.execute_tool")
+    def test_negative_bank_id_rejected(self, mock_tool):
+        response = self.client.post(
+            "/api/accounts/investigate",
+            json={
+                "bank_id": -1,
+                "account_number": "8000F4580",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        mock_tool.assert_not_called()
+
+    @patch("api.execute_tool")
+    def test_missing_account_dataset(self, mock_tool):
+        mock_tool.side_effect = FileNotFoundError(
+            "/private/internal/transactions.csv"
+        )
+
+        response = self.client.post(
+            "/api/accounts/investigate",
+            json={
+                "bank_id": 3208,
+                "account_number": "8000F4580",
+            },
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn(
+            "/private/internal/",
+            response.text,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

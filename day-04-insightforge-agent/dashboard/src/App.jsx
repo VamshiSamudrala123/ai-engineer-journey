@@ -496,13 +496,272 @@ function Payments() {
   </div>
 }
 
+
 function Accounts() {
-  return <div className="page detail-page">
-    <SectionTitle kicker="ACCOUNT INTELLIGENCE" title="Know the details." subtitle="A precise view of account activity, without the noise." side={<span className="date-pill"><ShieldCheck size={15}/> Verified snapshot</span>}/>
-    <div className="account-hero surface"><div className="account-hero-head"><span className="overline">INVESTIGATION PROFILE</span><span className="synthetic-tag">Synthetic data</span></div><div className="account-hero-body"><div className="large-account-icon"><WalletCards size={33}/></div><div><span>Account number</span><h2>8000F4580</h2><p>Bank identifier: 3208</p></div></div><div className="account-stats"><div><span>Total transactions</span><strong>3</strong></div><div><span>Outgoing</span><strong>3</strong></div><div><span>Incoming</span><strong>0</strong></div><div><span>Self-transfers</span><strong>0</strong></div></div></div>
-    <div className="account-insight surface"><span className="account-insight-icon"><ShieldCheck size={21}/></span><div><strong>No synthetic laundering labels</strong><p>None of the three transactions associated with this account were labeled in the synthetic dataset. This does not establish whether an account is safe or unsafe in reality.</p></div></div>
-    <div className="next-step"><span className="overline">COMING IN THE NEXT CHECKPOINT</span><h3>Investigate any account.</h3><p>We'll connect this page to the FastAPI endpoint backed by your existing DuckDB account investigation tool.</p><span className="soon-pill"><LockKeyhole size={14}/> Backend connection pending</span></div>
-  </div>
+  const [bankId, setBankId] = useState('3208')
+  const [accountNumber, setAccountNumber] = useState('8000F4580')
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const reduceMotion = useReducedMotion()
+
+  async function investigate(event) {
+    event.preventDefault()
+
+    if (loading) return
+
+    const bank = bankId.trim()
+    const account = accountNumber.trim()
+
+    if (
+      !/^\d+$/.test(bank) ||
+      !Number.isSafeInteger(Number(bank))
+    ) {
+      setError('Enter a valid nonnegative numeric bank ID.')
+      setResult(null)
+      return
+    }
+
+    if (!account || account.length > 64) {
+      setError('Enter an account number of up to 64 characters.')
+      setResult(null)
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setResult(null)
+
+    try {
+      const response = await fetch('/api/accounts/investigate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bank_id: Number(bank),
+          account_number: account,
+        }),
+      })
+
+      if (!response.ok) {
+        if (response.status === 422) {
+          throw new Error('Check the account details and try again.')
+        }
+
+        if (response.status === 503) {
+          throw new Error('The banking dataset is unavailable.')
+        }
+
+        throw new Error('Could not complete the investigation.')
+      }
+
+      const data = await response.json()
+
+      if (
+        typeof data.total_transactions !== 'number' ||
+        typeof data.incoming_transactions !== 'number' ||
+        typeof data.outgoing_transactions !== 'number'
+      ) {
+        throw new Error('The server returned unexpected account data.')
+      }
+
+      setResult(data)
+    } catch (err) {
+      setError(
+        err.message || 'Unable to connect to the banking API.'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="page detail-page">
+      <SectionTitle
+        kicker="ACCOUNT INTELLIGENCE"
+        title="Know the details."
+        subtitle="Investigate account activity with precision and clarity."
+        side={
+          <span className="date-pill">
+            <Database size={15} />
+            Live · DuckDB
+          </span>
+        }
+      />
+
+      <section className="surface account-search">
+        <div className="account-search-intro">
+          <div>
+            <span className="overline">ACCOUNT INVESTIGATION</span>
+            <h3>Find the full picture.</h3>
+            <p>
+              Enter a bank identifier and account number to
+              investigate transactions in the synthetic dataset.
+            </p>
+          </div>
+
+          <span className="account-search-icon">
+            <Search size={22} />
+          </span>
+        </div>
+
+        <form className="account-search-form" onSubmit={investigate}>
+          <div className="account-field">
+            <label htmlFor="bank-id">Bank ID</label>
+            <input
+              id="bank-id"
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 3208"
+              value={bankId}
+              disabled={loading}
+              onChange={e => setBankId(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="account-field">
+            <label htmlFor="account-number">Account number</label>
+            <input
+              id="account-number"
+              type="text"
+              placeholder="Enter account number"
+              value={accountNumber}
+              disabled={loading}
+              maxLength={64}
+              onChange={e => setAccountNumber(e.target.value)}
+              required
+            />
+          </div>
+
+          <button
+            className="account-search-button"
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <span className="account-spinner" />
+                Investigating
+              </>
+            ) : (
+              <>
+                Investigate
+                <ArrowRight size={17} />
+              </>
+            )}
+          </button>
+        </form>
+      </section>
+
+      {error && (
+        <div className="account-message account-error" role="alert">
+          <ShieldCheck size={18} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {loading && (
+        <div
+          className="surface account-loading"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="account-spinner" />
+          <div>
+            <strong>Analyzing transactions</strong>
+            <p>Querying the synthetic banking dataset through DuckDB.</p>
+          </div>
+        </div>
+      )}
+
+      {!result && !loading && !error && (
+        <div className="account-empty-state">
+          <div className="account-empty-symbol">✳</div>
+          <h3>Every account tells a story.</h3>
+          <p>
+            The sample account is prefilled.
+            Select Investigate to explore its real transaction activity.
+          </p>
+        </div>
+      )}
+
+      {result && !loading && (
+        <motion.div
+          className="account-results"
+          initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: easing }}
+        >
+          <div className="account-hero surface">
+            <div className="account-hero-head">
+              <span className="overline">
+                LIVE INVESTIGATION RESULTS
+              </span>
+              <span className="synthetic-tag">
+                Synthetic data
+              </span>
+            </div>
+
+            <div className="account-hero-body">
+              <div className="large-account-icon">
+                <WalletCards size={33} />
+              </div>
+
+              <div>
+                <span>Account number</span>
+                <h2>{result.account_number}</h2>
+                <p>Bank identifier: {result.bank_id}</p>
+              </div>
+            </div>
+
+            <div className="account-stats">
+              <div>
+                <span>Total transactions</span>
+                <strong>{fmt(result.total_transactions)}</strong>
+              </div>
+
+              <div>
+                <span>Outgoing</span>
+                <strong>{fmt(result.outgoing_transactions)}</strong>
+              </div>
+
+              <div>
+                <span>Incoming</span>
+                <strong>{fmt(result.incoming_transactions)}</strong>
+              </div>
+
+              <div>
+                <span>Self-transfers</span>
+                <strong>{fmt(result.self_transfers)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="account-insight surface">
+            <span className="account-insight-icon">
+              <ShieldCheck size={21} />
+            </span>
+
+            <div>
+              <strong>
+                {result.total_transactions === 0
+                  ? 'No matching transactions found'
+                  : `${fmt(result.labeled_transactions)} synthetic laundering labels`}
+              </strong>
+
+              <p>
+                {result.total_transactions === 0
+                  ? 'No transactions matched this bank and account combination in the available dataset. This does not establish whether the account exists elsewhere.'
+                  : 'These counts reflect the available synthetic transaction records. Labels are not proof of real-world criminal activity, and zero labels do not establish that an account is safe.'}
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  )
 }
 
 const suggestions = [

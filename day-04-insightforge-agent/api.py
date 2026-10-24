@@ -1,4 +1,4 @@
-
+from pydantic import BaseModel, Field
 from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException
@@ -59,4 +59,34 @@ def payments():
         raise HTTPException(
             status_code=503,
             detail="Banking dataset files are unavailable.",
+        )
+
+class AccountInvestigationRequest(BaseModel):
+    bank_id: int = Field(ge=0)
+    account_number: str = Field(min_length=1, max_length=64)
+
+
+@app.post("/api/accounts/investigate")
+def investigate_account_api(request: AccountInvestigationRequest):
+    """Investigate an account using the approved banking tool."""
+
+    try:
+        return execute_tool(
+            "investigate_account",
+            {
+                "bank_id": request.bank_id,
+                "account_number": request.account_number.strip(),
+            },
+        )
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=503,
+            detail="Banking dataset files are unavailable.",
+        )
+
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid account investigation details.",
         )
