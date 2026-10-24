@@ -165,6 +165,54 @@ class TestInsightForgeAPI(unittest.TestCase):
             response.text,
         )
 
+    
+    def test_chat_success(self):
+        with (
+            patch.dict(
+                "os.environ",
+                {"GEMINI_API_KEY": "test-key"},
+            ),
+            patch("api.genai.Client") as mock_client,
+            patch(
+                "api.ask_agent",
+                return_value="The dataset contains synthetic banking records.",
+            ) as mock_agent,
+        ):
+            response = self.client.post(
+                "/api/chat",
+                json={"question": "Describe the dataset."},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(
+                "synthetic banking",
+                response.json()["answer"],
+            )
+            mock_client.assert_called_once_with(
+                api_key="test-key"
+            )
+            mock_agent.assert_called_once()
+
+    def test_chat_rejects_empty_question(self):
+        response = self.client.post(
+            "/api/chat",
+            json={"question": "   "},
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_chat_requires_server_api_key(self):
+        with patch.dict(
+            "os.environ",
+            {"GEMINI_API_KEY": ""},
+        ):
+            response = self.client.post(
+                "/api/chat",
+                json={"question": "Analyze payments."},
+            )
+
+        self.assertEqual(response.status_code, 503)
+
 
 if __name__ == "__main__":
     unittest.main()

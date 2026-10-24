@@ -1951,3 +1951,164 @@ button:focus-visible,input:focus-visible {
     transition: none;
   }
 }
+
+/* InsightForge V3.4 — Live Gemini chat */
+
+.assistant-dot {
+  background: #67b8a2;
+  box-shadow: 0 0 0 4px #e8f6f1;
+}
+
+.assistant-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 340px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 28px 26px;
+  scroll-behavior: smooth;
+}
+
+.assistant-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 85%;
+  min-width: 0;
+}
+
+.assistant-message.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.assistant-message.assistant {
+  align-self: flex-start;
+}
+
+.assistant-message-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #929aab;
+  letter-spacing: 0.15px;
+}
+
+.assistant-bubble {
+  padding: 15px 19px;
+  border: 1px solid #ebedf5;
+  border-radius: 17px;
+  background: #f7f8fc;
+  color: #495266;
+  font-size: 12px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.assistant-message.user .assistant-bubble {
+  background: #5264df;
+  border-color: #5264df;
+  color: white;
+  border-bottom-right-radius: 5px;
+}
+
+.assistant-message.assistant .assistant-bubble {
+  border-bottom-left-radius: 5px;
+}
+
+.assistant-bubble p {
+  margin: 0;
+}
+
+.assistant-bubble p + p {
+  margin-top: 12px;
+}
+
+.assistant-bubble ul,
+.assistant-bubble ol {
+  padding-left: 19px;
+  margin: 10px 0;
+}
+
+.assistant-bubble li {
+  margin: 5px 0;
+}
+
+.assistant-bubble strong {
+  font-weight: 750;
+}
+
+.assistant-bubble a {
+  color: #5264df;
+  text-decoration: underline;
+}
+
+.assistant-bubble code {
+  background: #e9ecf8;
+  padding: 2px 5px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.assistant-bubble h1,
+.assistant-bubble h2,
+.assistant-bubble h3 {
+  font-size: 14px;
+  margin: 13px 0 8px;
+}
+
+.assistant-thinking {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #7f88a2;
+}
+
+.assistant-chat-error {
+  margin: 0 24px 13px;
+  border: 1px solid #f0d5d5;
+  background: #fff6f6;
+  color: #ad5050;
+  border-radius: 12px;
+  padding: 13px 16px;
+  font-size: 12px;
+}
+
+.assistant-composer button:not(:disabled) {
+  background: #5264df;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.assistant-composer button:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(82, 100, 223, 0.23);
+}
+
+.assistant-composer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.assistant-composer button:focus-visible {
+  outline: 3px solid #aeb7ff;
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .assistant-thread {
+    padding: 20px 15px;
+  }
+
+  .assistant-message {
+    max-width: 94%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-thread {
+    scroll-behavior: auto;
+  }
+}
