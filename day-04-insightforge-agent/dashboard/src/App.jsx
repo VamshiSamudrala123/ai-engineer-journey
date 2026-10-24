@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import ReactMarkdown from 'react-markdown'
 import {
   Activity, ArrowDownLeft, ArrowRight, ArrowUpRight,
   ArrowUpRight as Outbound, BarChart3, Check, ChevronDown,
@@ -770,16 +771,224 @@ const suggestions = [
   'Investigate account 8000F4580 at bank 3208',
 ]
 
+
 function Assistant() {
   const [draft, setDraft] = useState('')
-  return <div className="page assistant-page">
-    <div className="assistant-header"><span className="eyebrow">GEMINI + BANKING TOOLS</span><h1>Ask better questions.<br /><span>Find clearer answers.</span></h1><p>Your multi-tool intelligence agent will be available right here.</p></div>
-    <div className="assistant-window surface"><div className="assistant-window-header"><span><span className="assistant-dot"/> InsightForge Assistant</span><span className="soon-pill">API connection pending</span></div>
-      <div className="assistant-empty"><div className="assistant-glyph">✳</div><h2>Intelligence, on demand.</h2><p>Ask about payment patterns, dataset statistics, or an individual account. Answers will come from approved Python tools when we connect the backend.</p><div className="suggestions">{suggestions.map(s => <button key={s} onClick={() => setDraft(s)}>{s}<ArrowUpRight size={15}/></button>)}</div></div>
-      <div className="assistant-composer"><input aria-label="Draft an investigation question" value={draft} onChange={e => setDraft(e.target.value)} placeholder="Ask a banking question…" /><button disabled title="Connect the Python backend to enable chat" aria-label="Send message unavailable"><ArrowUpRight size={19}/></button></div><p className="composer-caption"><LockKeyhole size={13}/> Preview mode — chat will activate when FastAPI is connected. Your Gemini key stays on the Python server.</p>
+  const [messages, setMessages] = useState([])
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+  const threadRef = useRef(null)
+  const reduceMotion = useReducedMotion()
+
+  useEffect(() => {
+    if (threadRef.current) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight
+    }
+  }, [messages, sending])
+
+  async function sendMessage(event) {
+    event.preventDefault()
+
+    const question = draft.trim()
+    if (!question || sending) return
+
+    setMessages(previous => [
+      ...previous,
+      { role: 'user', text: question },
+    ])
+
+    setDraft('')
+    setError('')
+    setSending(true)
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question }),
+      })
+
+      if (!response.ok) {
+        if (response.status === 503) {
+          throw new Error('Gemini is not configured on the server.')
+        }
+
+        if (response.status === 502) {
+          throw new Error(
+            'Gemini could not complete this investigation. Please try again.'
+          )
+        }
+
+        throw new Error('Unable to complete your request.')
+      }
+
+      const data = await response.json()
+
+      if (typeof data.answer !== 'string') {
+        throw new Error('The server returned an invalid answer.')
+      }
+
+      setMessages(previous => [
+        ...previous,
+        { role: 'assistant', text: data.answer },
+      ])
+    } catch (err) {
+      setError(
+        err instanceof TypeError
+          ? 'Cannot connect to FastAPI. Check that your Python server is running.'
+          : err.message
+      )
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="page assistant-page">
+      <div className="assistant-header">
+        <span className="eyebrow">GEMINI + BANKING TOOLS</span>
+        <h1>
+          Ask better questions.
+          <br />
+          <span>Find clearer answers.</span>
+        </h1>
+        <p>
+          Your AI intelligence agent, connected to real synthetic
+          banking data.
+        </p>
+      </div>
+
+      <div className="assistant-window surface">
+        <div className="assistant-window-header">
+          <span>
+            <span className="assistant-dot" />
+            InsightForge Assistant
+          </span>
+
+          <span className="soon-pill">
+            <ShieldCheck size={13} />
+            Live · Gemini + DuckDB
+          </span>
+        </div>
+
+        {messages.length === 0 ? (
+          <div className="assistant-empty">
+            <div className="assistant-glyph">✳</div>
+
+            <h2>Intelligence, on demand.</h2>
+
+            <p>
+              Investigate payment patterns, explore dataset statistics,
+              or ask about individual accounts using approved
+              Python banking tools.
+            </p>
+
+            <div className="suggestions">
+              {suggestions.map(suggestion => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => setDraft(suggestion)}
+                >
+                  {suggestion}
+                  <ArrowUpRight size={15} />
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div
+            className="assistant-thread"
+            ref={threadRef}
+            aria-live="polite"
+          >
+            {messages.map((message, index) => (
+              <motion.div
+                key={index}
+                className={`assistant-message ${message.role}`}
+                initial={
+                  reduceMotion
+                    ? false
+                    : { opacity: 0, y: 10 }
+                }
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <span className="assistant-message-label">
+                  {message.role === 'user'
+                    ? 'You'
+                    : '✳ InsightForge AI'}
+                </span>
+
+                <div className="assistant-bubble">
+                  {message.role === 'assistant' ? (
+                    <ReactMarkdown>
+                      {message.text}
+                    </ReactMarkdown>
+                  ) : (
+                    <p>{message.text}</p>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+
+            {sending && (
+              <div className="assistant-message assistant">
+                <span className="assistant-message-label">
+                  ✳ InsightForge AI
+                </span>
+
+                <div className="assistant-bubble assistant-thinking">
+                  <span className="account-spinner" />
+                  Investigating your question…
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {error && (
+          <div className="assistant-chat-error" role="alert">
+            {error}
+          </div>
+        )}
+
+        <form
+          className="assistant-composer"
+          onSubmit={sendMessage}
+        >
+          <input
+            aria-label="Ask an investigation question"
+            value={draft}
+            onChange={event => setDraft(event.target.value)}
+            placeholder="Ask a banking question…"
+            maxLength={2000}
+            disabled={sending}
+            required
+          />
+
+          <button
+            type="submit"
+            aria-label="Send message"
+            disabled={sending || !draft.trim()}
+          >
+            <ArrowUpRight size={19} />
+          </button>
+        </form>
+
+        <p className="composer-caption">
+          <LockKeyhole size={13} />
+          Gemini key stays on your Python server.
+          Each question is investigated independently.
+          Synthetic data only.
+        </p>
+      </div>
     </div>
-  </div>
+  )
 }
+
 
 export default function App() {
   const [active, setActive] = useState('overview')

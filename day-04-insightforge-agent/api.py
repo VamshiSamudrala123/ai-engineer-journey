@@ -1,3 +1,8 @@
+import os
+
+from google import genai
+from gemini_agent import ask_agent
+
 from pydantic import BaseModel, Field
 from functools import lru_cache
 
@@ -89,4 +94,40 @@ def investigate_account_api(request: AccountInvestigationRequest):
         raise HTTPException(
             status_code=422,
             detail="Invalid account investigation details.",
+        )
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+@app.post("/api/chat")
+def chat(request: ChatRequest):
+    """Ask the existing Gemini banking agent a question."""
+
+    question = request.question.strip()
+
+    if not question:
+        raise HTTPException(
+            status_code=422,
+            detail="Please enter a question.",
+        )
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini is not configured on the server.",
+        )
+
+    try:
+        with genai.Client(api_key=api_key) as client:
+            answer = ask_agent(client, question)
+
+        return {"answer": answer}
+
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI assistant could not complete the request.",
         )
