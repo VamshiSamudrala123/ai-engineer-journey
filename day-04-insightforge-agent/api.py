@@ -9,7 +9,8 @@ from functools import lru_cache
 from fastapi import FastAPI, HTTPException
 
 from tool_registry import execute_tool
-
+from typing import Literal
+from pydantic import field_validator
 
 app = FastAPI(
     title="InsightForge AI API",
@@ -96,9 +97,25 @@ def investigate_account_api(request: AccountInvestigationRequest):
             detail="Invalid account investigation details.",
         )
 
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value):
+        if not value.strip():
+            raise ValueError("Message text cannot be blank")
+        return value.strip()
+
+
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
-
+    history: list[ChatMessage] = Field(
+        default_factory=list,
+        max_length=6,
+    )
 
 @app.post("/api/chat")
 def chat(request: ChatRequest):
@@ -120,14 +137,32 @@ def chat(request: ChatRequest):
             detail="Gemini is not configured on the server.",
         )
 
+    
     try:
-        with genai.Client(api_key=api_key) as client:
-            answer = ask_agent(client, question)
+        conversation_history = [
+            message.model_dump()
+            for message in request.history
+        ]
 
-        return {"answer": answer}
+        # Collect the approved tools used by Gemini.
+        tool_activity = []
+
+        with genai.Client(api_key=api_key) as client:
+            answer = ask_agent(
+                client,
+                question,
+                conversation_history=conversation_history,
+                tool_activity=tool_activity,
+            )
+
+        return {
+            "answer": answer,
+            "tool_activity": tool_activity,
+        }
 
     except Exception:
         raise HTTPException(
             status_code=502,
             detail="The AI assistant could not complete the request.",
         )
+

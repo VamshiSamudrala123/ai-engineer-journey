@@ -2112,3 +2112,51 @@ button:focus-visible,input:focus-visible {
     scroll-behavior: auto;
   }
 }
+
+.assistant-tool-activity {
+  margin-top: 17px;
+  padding-top: 14px;
+  border-top: 1px solid #e7eaf2;
+}
+
+.assistant-tool-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8791ad;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin-bottom: 12px;
+}
+
+.assistant-tool-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assistant-tool-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 9px;
+  border: 1px solid #e5e9f4;
+  background: #f6f8fd;
+  color: #65718f;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.assistant-tool-pill.success {
+  background: #eff8f4;
+  border-color: #deeee5;
+  color: #518d74;
+}
+
+.assistant-tool-pill.error {
+  background: #fff7f0;
+  border-color: #f4e3d0;
+  color: #a97c4e;
+}

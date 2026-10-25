@@ -771,6 +771,11 @@ const suggestions = [
   'Investigate account 8000F4580 at bank 3208',
 ]
 
+const TOOL_LABELS = {
+  inspect_banking_data: 'Dataset overview',
+  analyze_payment_formats: 'Payment analysis',
+  investigate_account: 'Account investigation',
+}
 
 function Assistant() {
   const [draft, setDraft] = useState('')
@@ -792,11 +797,20 @@ function Assistant() {
     const question = draft.trim()
     if (!question || sending) return
 
+    
+    // Keep the six most recent messages within API limits.
+    const history = messages
+      .slice(-6)
+      .map(({ role, text }) => ({
+        role,
+        text: text.slice(0, 1900),
+      }))
+
+    // Show the user's question immediately.
     setMessages(previous => [
       ...previous,
       { role: 'user', text: question },
     ])
-
     setDraft('')
     setError('')
     setSending(true)
@@ -804,41 +818,57 @@ function Assistant() {
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ question }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, history }),
       })
 
       if (!response.ok) {
         if (response.status === 503) {
           throw new Error('Gemini is not configured on the server.')
         }
-
         if (response.status === 502) {
           throw new Error(
             'Gemini could not complete this investigation. Please try again.'
           )
         }
-
+        if (response.status === 422) {
+          throw new Error('Please check your question and try again.')
+        }
         throw new Error('Unable to complete your request.')
       }
 
+      // Read the API result before accessing data.answer or data.tool_activity.
       const data = await response.json()
 
       if (typeof data.answer !== 'string') {
         throw new Error('The server returned an invalid answer.')
       }
 
+      const toolActivity = Array.isArray(data.tool_activity)
+        ? data.tool_activity
+            .filter(
+              item =>
+                item &&
+                Object.hasOwn(TOOL_LABELS, item.tool) &&
+                ['success', 'error'].includes(item.status)
+            )
+            .slice(0, 6)
+        : []
+
+      // Add a single assistant response with its corresponding tool activity.
       setMessages(previous => [
         ...previous,
-        { role: 'assistant', text: data.answer },
+        {
+          role: 'assistant',
+          text: data.answer,
+          toolActivity,
+        },
       ])
     } catch (err) {
       setError(
         err instanceof TypeError
           ? 'Cannot connect to FastAPI. Check that your Python server is running.'
-          : err.message
+          : (err.message || 'Unable to complete your request.')
       )
     } finally {
       setSending(false)
@@ -921,16 +951,47 @@ function Assistant() {
                     ? 'You'
                     : '✳ InsightForge AI'}
                 </span>
+                
+  <div className="assistant-bubble">
+  {message.role === 'assistant' ? (
+    <>
+      <ReactMarkdown>
+        {message.text}
+      </ReactMarkdown>
 
-                <div className="assistant-bubble">
-                  {message.role === 'assistant' ? (
-                    <ReactMarkdown>
-                      {message.text}
-                    </ReactMarkdown>
-                  ) : (
-                    <p>{message.text}</p>
-                  )}
-                </div>
+      {message.toolActivity?.length > 0 && (
+        <div className="assistant-tool-activity">
+          <div className="assistant-tool-heading">
+            <Database size={14} />
+            <span>Tools used</span>
+          </div>
+
+          <div className="assistant-tool-list">
+            {message.toolActivity.map((item, index) => (
+              <span
+                key={`${item.tool}-${index}`}
+                className={`assistant-tool-pill ${item.status}`}
+              >
+                {item.status === 'success' && (
+                  <Check size={12} />
+                )}
+
+                {TOOL_LABELS[item.tool]}
+
+                {item.status === 'error' && (
+                  <span> · Error</span>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  ) : (
+    <p>{message.text}</p>
+  )}
+</div>
+
               </motion.div>
             ))}
 
@@ -981,7 +1042,7 @@ function Assistant() {
         <p className="composer-caption">
           <LockKeyhole size={13} />
           Gemini key stays on your Python server.
-          Each question is investigated independently.
+          Follow-up questions use recent conversation context.
           Synthetic data only.
         </p>
       </div>
