@@ -18,6 +18,9 @@ MODEL = os.getenv("GEMINI_MODEL", "").strip() or "gemini-3.5-flash-lite"
 MAX_TOOL_ROUNDS = 3
 MAX_TOTAL_TOOL_CALLS = 6
 
+MAX_HISTORY_MESSAGES = 6
+MAX_HISTORY_TEXT_LENGTH = 2000
+
 
 INSTRUCTIONS = """
 You are InsightForge AI, a banking analytics assistant.
@@ -93,9 +96,53 @@ BANKING_TOOLS = types.Tool(
 )
 
 
-def ask_agent(client, question):
-    """Run a bounded, multi-tool Gemini investigation."""
 
+def ask_agent(
+    client,
+    question,
+    conversation_history=None,
+    tool_activity=None,
+):
+    """Run a bounded Gemini investigation with follow-up context."""
+
+    if conversation_history is None:
+        conversation_history = []
+
+    if not isinstance(conversation_history, list):
+        raise ValueError("Conversation history must be a list")
+
+    history = []
+
+    # Keep only the latest six previous messages.
+    recent_messages = conversation_history[-MAX_HISTORY_MESSAGES:]
+
+    for message in recent_messages:
+        if not isinstance(message, dict):
+            raise ValueError("Invalid conversation message")
+
+        role = message.get("role")
+        text = message.get("text")
+
+        if role not in ("user", "assistant"):
+            raise ValueError("Invalid conversation role")
+
+        if (
+            not isinstance(text, str)
+            or not text.strip()
+            or len(text) > MAX_HISTORY_TEXT_LENGTH
+        ):
+            raise ValueError("Invalid conversation text")
+
+        history.append(
+            types.Content(
+                role="model" if role == "assistant" else "user",
+                parts=[
+                    types.Part.from_text(text=text.strip())
+                ],
+            )
+        )
+
+    # Add the current question after previous conversation turns.
     user_message = types.Content(
         role="user",
         parts=[
@@ -103,7 +150,7 @@ def ask_agent(client, question):
         ],
     )
 
-    history = [user_message]
+    history.append(user_message)
 
     total_tool_calls = 0
 
@@ -185,6 +232,17 @@ def ask_agent(client, question):
         response_parts, trace = run_tool_batch(calls)
 
         total_tool_calls += len(calls)
+
+        # Capture only approved tool names and execution statuses.
+        # Never expose tool arguments or raw results in the activity feed.
+        if tool_activity is not None:
+            tool_activity.extend(
+                {
+                    "tool": entry["tool"],
+                    "status": entry["status"],
+                }
+                for entry in trace
+            )
 
         # Print the execution trace.
         for entry in trace:
