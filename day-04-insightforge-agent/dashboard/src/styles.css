@@ -2160,3 +2160,49 @@ button:focus-visible,input:focus-visible {
   border-color: #f4e3d0;
   color: #a97c4e;
 }
+
+
+/* InsightForge V3.6 — New Conversation */
+.assistant-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.assistant-new-chat {
+  border: 1px solid #dfe3f1;
+  background: #fff;
+  color: #5264df;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.assistant-new-chat:not(:disabled):hover {
+  background: #f2f4ff;
+}
+
+.assistant-new-chat:focus-visible {
+  outline: 3px solid #aeb7ff;
+  outline-offset: 2px;
+}
+
+.assistant-new-chat:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .assistant-window-header {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .assistant-header-actions {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+}
