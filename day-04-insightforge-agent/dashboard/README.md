@@ -6,8 +6,16 @@ The frontend for InsightForge AI, built with React and Vite.
 
 1. Overview — live banking statistics and payment chart
 2. Payment analysis — live payment-format and currency data
-3. Account investigation — live DuckDB account lookups
+3. Account investigation — live DuckDB lookups and PDF downloads
 4. AI intelligence — Gemini chat with banking tools
+
+## PDF report download
+
+After investigating an account, select **Download PDF** to
+generate an evidence-backed account report through FastAPI.
+
+The PDF is generated from approved DuckDB analysis and
+contains synthetic-data disclaimers.
 
 ## AI assistant features
 

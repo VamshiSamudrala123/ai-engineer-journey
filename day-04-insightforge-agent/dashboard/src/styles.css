@@ -2206,3 +2206,57 @@ button:focus-visible,input:focus-visible {
     flex-wrap: wrap;
   }
 }
+
+
+/* InsightForge V3.8 — PDF report download */
+.account-report-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 22px 26px;
+}
+
+.account-report-copy strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #3b445c;
+}
+
+.account-report-copy p {
+  margin: 6px 0 0;
+  color: #929bb0;
+  font-size: 12px;
+}
+
+.account-report-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 12px 18px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: #5264df;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.account-report-button:hover:not(:disabled) {
+  background: #4355d0;
+}
+
+.account-report-button:focus-visible {
+  outline: 3px solid #aeb7ff;
+  outline-offset: 3px;
+}
+
+.account-report-button:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}

@@ -8,7 +8,7 @@ individual accounts, and lets users ask questions in natural language.
 
 ## Current version
 
-V3.6 — Portfolio Polish
+V3.8 — Evidence-Backed PDF Reporting
 
 ## Features
 
@@ -23,6 +23,9 @@ V3.6 — Portfolio Polish
 - New Conversation button
 - Improved chat error handling and retry
 - Automated Python tests
+- GitHub Actions CI for Python and React
+- Evidence-backed account investigation PDFs
+- PDF downloads from the React dashboard
 
 ## Architecture
 
@@ -114,6 +117,31 @@ Use a supported Node.js version for Vite 7.
 | GET | /api/payments | Payment group statistics |
 | POST | /api/accounts/investigate | Account investigation |
 | POST | /api/chat | Gemini AI conversation |
+| POST | /api/reports/account | Download account PDF |
+
+## PDF account reports
+
+The Account Investigation page can generate a downloadable PDF
+using verified DuckDB query results.
+
+The report contains:
+- Bank ID and account number
+- Total, outgoing, incoming, and self-transfer counts
+- Synthetic laundering label count
+- Evidence-based findings and data limitations
+
+Generate a report through the API:
+
+```bash
+curl -f -X POST http://127.0.0.1:8000/api/reports/account \
+  -H "Content-Type: application/json" \
+  -d '{"bank_id":3208,"account_number":"8000F4580"}' \
+  -o account-report.pdf
+```
+
+These reports use synthetic banking data. They do not establish
+real-world wrongdoing, and their numerical findings are not
+invented by Gemini.
 
 ## Automated testing
 
@@ -123,7 +151,7 @@ From the InsightForge project directory:
 python -m unittest discover -s tests -q
 ```
 
-The V3.5 baseline includes 53 Python test methods.
+The V3.8 suite includes 71 Python test methods. GitHub Actions automatically checks Python tests and the React production build.
 
 Build the dashboard:
 
@@ -140,13 +168,13 @@ npm run build
   it is not persisted across refreshes.
 - Tool activity shows approved tool names and status,
   not a full execution trace.
-- Research workflows and PDF export are not implemented.
-- InsightForge-specific GitHub Actions CI is planned.
+- Account PDF export is implemented. Broader research workflows and AI-authored analytical narratives are not yet implemented.
 - Production deployment has not been verified.
 
 ## Roadmap
 
-- V3.7: Continuous integration
-- V3.8: Analytical research and PDF reports
+- V3.7: Continuous integration (complete)
+- V3.8: Evidence-backed account PDF reports (complete)
+- Future: Broader research and reporting workflows
 - V3.9: Deployment
 - V4.0: Portfolio release

@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+from report_service import generate_account_report
 
 from tool_registry import execute_tool
 from typing import Literal
@@ -96,6 +98,52 @@ def investigate_account_api(request: AccountInvestigationRequest):
             status_code=422,
             detail="Invalid account investigation details.",
         )
+
+
+@app.post("/api/reports/account")
+def account_report_pdf(request: AccountInvestigationRequest):
+    """Download an evidence-backed PDF for one synthetic banking account."""
+    account = request.account_number.strip()
+    if not account:
+        raise HTTPException(
+            status_code=422,
+            detail="Please enter an account number.",
+        )
+
+    try:
+        pdf = generate_account_report(
+            bank_id=request.bank_id,
+            account_number=account,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Banking dataset files are unavailable.",
+        ) from exc
+    except Exception as exc:
+        # Internal tool values, file paths and rendering errors stay private.
+        raise HTTPException(
+            status_code=500,
+            detail="The account report could not be generated.",
+        ) from exc
+
+    if not isinstance(pdf, bytes) or not pdf.startswith(b"%PDF-"):
+        raise HTTPException(
+            status_code=500,
+            detail="The account report could not be generated.",
+        )
+
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                'attachment; filename="InsightForge-Account-Report.pdf"'
+            ),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 class ChatMessage(BaseModel):
