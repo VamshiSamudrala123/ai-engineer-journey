@@ -5,7 +5,7 @@ import {
   Activity, ArrowDownLeft, ArrowRight, ArrowUpRight,
   ArrowUpRight as Outbound, BarChart3, Check, ChevronDown,
   Database, Fingerprint, Globe2, LayoutDashboard,
-  LockKeyhole, Search, ShieldCheck, Sparkles, WalletCards, Zap,
+  FileDown, LockKeyhole, Search, ShieldCheck, Sparkles, WalletCards, Zap,
 } from 'lucide-react'
 
 // Verified synthetic dataset snapshot. These are static preview values,
@@ -504,6 +504,8 @@ function Accounts() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportError, setReportError] = useState('')
   const reduceMotion = useReducedMotion()
 
   async function investigate(event) {
@@ -531,6 +533,7 @@ function Accounts() {
 
     setLoading(true)
     setError('')
+    setReportError('')
     setResult(null)
 
     try {
@@ -574,6 +577,64 @@ function Accounts() {
       )
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function downloadReport() {
+    if (!result || reportLoading || loading) return
+
+    setReportLoading(true)
+    setReportError('')
+
+    try {
+      // Export the most recently investigated account, not unsaved form edits.
+      const response = await fetch('/api/reports/account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bank_id: result.bank_id,
+          account_number: result.account_number,
+        }),
+      })
+
+      if (!response.ok) {
+        if (response.status === 422) {
+          throw new Error('Invalid account details. Investigate again.')
+        }
+        if (response.status === 503) {
+          throw new Error('Banking dataset is unavailable on the server.')
+        }
+        throw new Error('Unable to generate the PDF report. Try again.')
+      }
+
+      if (!response.headers.get('content-type')?.includes('application/pdf')) {
+        throw new Error('The server did not return a valid PDF response.')
+      }
+
+      const blob = await response.blob()
+      if (blob.size === 0) {
+        throw new Error('The PDF report was empty. Please retry.')
+      }
+
+      const filenameAccount = String(result.account_number)
+        .replace(/[^A-Za-z0-9_-]/g, '_')
+        .slice(0, 64) || 'account'
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `InsightForge-Account-${filenameAccount}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) {
+      setReportError(
+        err instanceof TypeError
+          ? 'Cannot connect to FastAPI. Check that your Python server is running.'
+          : (err.message || 'Could not download the report.')
+      )
+    } finally {
+      setReportLoading(false)
     }
   }
 
@@ -759,6 +820,37 @@ function Accounts() {
               </p>
             </div>
           </div>
+          <div className="account-report-actions surface">
+            <div className="account-report-copy">
+              <strong>Download investigation report</strong>
+              <p>Evidence-backed PDF · Synthetic data only</p>
+            </div>
+            <button
+              type="button"
+              className="account-report-button"
+              onClick={downloadReport}
+              disabled={reportLoading}
+            >
+              {reportLoading ? (
+                <>
+                  <span className="account-spinner" />
+                  Generating PDF…
+                </>
+              ) : (
+                <>
+                  Download PDF
+                  <FileDown size={17} />
+                </>
+              )}
+            </button>
+          </div>
+
+          {reportError && (
+            <div className="account-message account-error" role="alert">
+              <ShieldCheck size={18} />
+              <span>{reportError}</span>
+            </div>
+          )}
         </motion.div>
       )}
     </div>
