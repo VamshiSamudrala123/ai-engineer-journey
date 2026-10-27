@@ -1,3 +1,4 @@
+from pathlib import Path
 import os
 
 from google import genai
@@ -6,9 +7,11 @@ from gemini_agent import ask_agent
 from pydantic import BaseModel, Field
 from functools import lru_cache
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response, FileResponse
 from report_service import generate_account_report
+from chat_security import protect_chat_request
+from access_control import require_production_access
 
 from tool_registry import execute_tool
 from typing import Literal
@@ -19,6 +22,15 @@ app = FastAPI(
     version="3.2.0",
     description="Local API for synthetic banking intelligence.",
 )
+
+
+@app.middleware("http")
+async def private_demo_access(request: Request, call_next):
+    """Protect every production route except the public health check."""
+    denial = require_production_access(request)
+    if denial is not None:
+        return denial
+    return await call_next(request)
 
 
 @app.get("/api/health")
@@ -166,8 +178,9 @@ class ChatRequest(BaseModel):
     )
 
 @app.post("/api/chat")
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, http_request: Request):
     """Ask the existing Gemini banking agent a question."""
+    protect_chat_request(http_request)
 
     question = request.question.strip()
 
@@ -214,3 +227,72 @@ def chat(request: ChatRequest):
             detail="The AI assistant could not complete the request.",
         )
 
+
+
+# V3.9.5: Serve Vite's production build from the same origin as /api.
+# FastAPI's existing authentication middleware protects these routes too.
+# Keep using Vite on port 5173 during local development if preferred.
+DASHBOARD_DIST = Path(__file__).resolve().parent / "dashboard" / "dist"
+
+
+def _dashboard_html():
+    index_file = DASHBOARD_DIST / "index.html"
+    if not index_file.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="Dashboard production build is unavailable.",
+        )
+    return FileResponse(
+        index_file,
+        media_type="text/html",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@app.get("/", include_in_schema=False)
+def dashboard_home():
+    """Serve React's built index.html on the backend origin."""
+    return _dashboard_html()
+
+
+@app.get("/{frontend_path:path}", include_in_schema=False)
+def dashboard_static_or_route(frontend_path: str):
+    """Serve build assets or React client routes, never arbitrary local files."""
+    if frontend_path == "api" or frontend_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found.")
+
+    # Reject dotfiles, parent-directory traversal and symlink escapes.
+    if any(part.startswith(".") for part in Path(frontend_path).parts):
+        raise HTTPException(status_code=404, detail="Not found.")
+
+    dist_root = DASHBOARD_DIST.resolve()
+    requested = (dist_root / frontend_path).resolve()
+    try:
+        requested.relative_to(dist_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Not found.") from exc
+
+    if requested.is_file():
+        # Only built assets receive long-lived private caching.
+        cache = (
+            "private, max-age=31536000, immutable"
+            if frontend_path.startswith("assets/")
+            else "no-store"
+        )
+        return FileResponse(
+            requested,
+            headers={
+                "Cache-Control": cache,
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    # Client-side React routes need index.html on direct navigation/refresh.
+    # Do not turn requests for missing assets into success responses.
+    if "." not in Path(frontend_path).name and not frontend_path.startswith("assets/"):
+        return _dashboard_html()
+
+    raise HTTPException(status_code=404, detail="Not found.")

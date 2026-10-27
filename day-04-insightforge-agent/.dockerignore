@@ -1,0 +1,26 @@
+# Never send credentials or banking datasets into a container build context.
+.env
+.env.*
+**/.env
+**/.env.*
+data/
+**/data/raw/
+**/data/processed/
+**/*.csv
+**/*.pdf
+
+# Ignore local dependencies, caches, and generated frontend builds.
+.venv/
+**/.venv/
+.git/
+**/__pycache__/
+**/*.pyc
+**/.DS_Store
+**/.pytest_cache/
+dashboard/node_modules/
+dashboard/dist/
+node_modules/
+
+# Development-only tests, reports, and installers.
+tests/
+*install.py

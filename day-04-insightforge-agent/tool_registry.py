@@ -1,4 +1,5 @@
 
+import os
 from pathlib import Path
 
 from tools.banking_data import inspect_banking_data
@@ -10,8 +11,25 @@ from tools.account_investigation import investigate_account
 # The AI model will not supply arbitrary local file paths.
 PROJECT_DIR = Path(__file__).resolve().parent
 
-TRANSACTIONS = PROJECT_DIR / "data/raw/HI-Small_Trans.csv"
-ACCOUNTS = PROJECT_DIR / "data/raw/HI-Small_accounts.csv"
+
+def get_dataset_dir():
+    """Use a configured cloud directory or the local development data."""
+    override = os.getenv("INSIGHTFORGE_DATA_DIR", "").strip()
+
+    if override:
+        directory = Path(override).expanduser()
+        if not directory.is_absolute():
+            raise ValueError(
+                "INSIGHTFORGE_DATA_DIR must be an absolute path"
+            )
+        return directory
+
+    return PROJECT_DIR / "data/raw"
+
+
+DATA_DIR = get_dataset_dir()
+TRANSACTIONS = DATA_DIR / "HI-Small_Trans.csv"
+ACCOUNTS = DATA_DIR / "HI-Small_accounts.csv"
 
 
 # Only these tools can be requested by the agent.
