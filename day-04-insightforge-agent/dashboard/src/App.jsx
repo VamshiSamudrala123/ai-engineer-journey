@@ -68,7 +68,7 @@ function Sidebar({ active, setActive }) {
         <div className="note-icon"><ShieldCheck size={18} /></div>
         <strong>Built with clarity.</strong>
         <p>Explore banking patterns with traceable, synthetic data.</p>
-        <span className="note-status"><span className="status-dot" /> Local preview</span>
+        <span className="note-status"><span className="status-dot" /> Local workspace</span>
       </div>
       <div className="sidebar-footer"><div className="avatar">IF</div><div><strong>InsightForge</strong><span>Developer workspace</span></div><ChevronDown size={15} /></div>
     </aside>
@@ -80,7 +80,7 @@ function Header({ active }) {
   return (
     <header className="topbar">
       <div className="breadcrumb"><span>Workspace</span><span className="slash">/</span><strong>{current?.label}</strong></div>
-      <div className="topbar-right"><span className="preview-label"><span className="status-dot" /> PREVIEW DATA</span><span className="topbar-divider" /><div className="header-avatar">IF</div></div>
+      <div className="topbar-right"><span className="preview-label"><span className="status-dot" /> SYNTHETIC DATA</span><span className="topbar-divider" /><div className="header-avatar">IF</div></div>
     </header>
   )
 }
@@ -224,7 +224,7 @@ function Hero({ onExplore, reduceMotion }) {
     </div>
     <div className="hero-visual" aria-hidden="true">
       <div className="floating-orbit orbit-outer" /><div className="floating-orbit orbit-inner" />
-      <div className="glass-chip glass-top"><span className="chip-icon blue"><Activity size={16}/></span><span><b>Data connected</b><small>Synthetic preview</small></span><Check size={15} className="chip-check"/></div>
+      <div className="glass-chip glass-top"><span className="chip-icon blue"><Activity size={16}/></span><span><b>Data connected</b><small>Synthetic dataset</small></span><Check size={15} className="chip-check"/></div>
       <div className="visual-core"><div className="core-inner"><span>✳</span></div></div>
       <div className="glass-chip glass-bottom"><span className="chip-icon violet"><BarChart3 size={16}/></span><span><b>3 banking tools</b><small>Ready to investigate</small></span><span className="signal-bars"><i/><i/><i/></span></div>
       <div className="orb orb-a"/><div className="orb orb-b"/><div className="orb orb-c"/>
@@ -466,7 +466,7 @@ function PaymentChart({ compact = false }) {
 }
 
 function AccountSnapshot({ onExplore }) {
-  return <div className="surface account-card"><div className="card-heading"><div><span className="overline">ACCOUNT SPOTLIGHT</span><h3>Follow the flow.</h3><p>A closer look at one verified account.</p></div><span className="circle-action"><ArrowUpRight size={18}/></span></div>
+  return <div className="surface account-card"><div className="card-heading"><div><span className="overline">ACCOUNT SPOTLIGHT</span><h3>Follow the flow.</h3><p>A featured example from the synthetic dataset.</p></div><span className="circle-action"><ArrowUpRight size={18}/></span></div>
     <div className="account-identity"><span className="account-avatar"><WalletCards size={22} /></span><div><strong>8000F4580</strong><span>Bank 3208</span></div><span className="synthetic-tag">Synthetic</span></div>
     <div className="account-flow"><div className="flow-stat"><span className="circle-icon"><ArrowDownLeft size={17}/></span><strong>0</strong><span>Incoming</span></div><div className="flow-rule"><span/><span/><span/></div><div className="flow-stat"><span className="circle-icon light"><Outbound size={17}/></span><strong>3</strong><span>Outgoing</span></div></div>
     <div className="account-bottom"><span><ShieldCheck size={16}/> 0 synthetic labels</span><button onClick={onExplore}>View investigation <ArrowRight size={15}/></button></div>
@@ -484,7 +484,7 @@ function Overview({ go, reduceMotion }) {
     <MetricGrid reduceMotion={reduceMotion}/>
     <div className="analysis-grid"><PaymentChart compact/><AccountSnapshot onExplore={() => go('accounts')}/></div>
     <InsightNote />
-    <div className="page-footnote"><ShieldCheck size={15}/> Overview metrics are loaded live from DuckDB. Payment charts and account details remain verified previews until the next checkpoint..</div>
+    <div className="page-footnote"><ShieldCheck size={15}/> Overview metrics and payment charts use live DuckDB queries. The featured account is a static example; use Account Investigation for live account lookups.</div>
   </div>
 }
 
@@ -791,6 +791,14 @@ function Assistant() {
     }
   }, [messages, sending])
 
+  function startNewConversation() {
+    if (sending) return
+
+    setMessages([])
+    setDraft('')
+    setError('')
+  }
+
   async function sendMessage(event) {
     event.preventDefault()
 
@@ -823,18 +831,33 @@ function Assistant() {
       })
 
       if (!response.ok) {
-        if (response.status === 503) {
-          throw new Error('Gemini is not configured on the server.')
-        }
-        if (response.status === 502) {
+        if (response.status === 422) {
           throw new Error(
-            'Gemini could not complete this investigation. Please try again.'
+            'The question was rejected. Check your input and try again.'
           )
         }
-        if (response.status === 422) {
-          throw new Error('Please check your question and try again.')
+
+        if (response.status === 503) {
+          throw new Error(
+            'Gemini is not configured. Check the FastAPI server settings.'
+          )
         }
-        throw new Error('Unable to complete your request.')
+
+        if (response.status === 502) {
+          throw new Error(
+            'The AI assistant is temporarily unavailable. Please retry.'
+          )
+        }
+
+        if (response.status === 429) {
+          throw new Error(
+            'Too many requests. Please retry after a short break.'
+          )
+        }
+
+        throw new Error(
+          `The API returned HTTP ${response.status}. Please try again.`
+        )
       }
 
       // Read the API result before accessing data.answer or data.tool_activity.
@@ -865,9 +888,23 @@ function Assistant() {
         },
       ])
     } catch (err) {
+      // Restore the question so the user can send it again.
+      setDraft(question)
+
+      // Remove the unanswered question from conversation history.
+      setMessages(previous => {
+        const last = previous[previous.length - 1]
+
+        if (last?.role === 'user' && last.text === question) {
+          return previous.slice(0, -1)
+        }
+
+        return previous
+      })
+
       setError(
         err instanceof TypeError
-          ? 'Cannot connect to FastAPI. Check that your Python server is running.'
+          ? 'Cannot connect to FastAPI. Check that the Python server is running.'
           : (err.message || 'Unable to complete your request.')
       )
     } finally {
@@ -897,10 +934,21 @@ function Assistant() {
             InsightForge Assistant
           </span>
 
-          <span className="soon-pill">
-            <ShieldCheck size={13} />
-            Live · Gemini + DuckDB
-          </span>
+          <div className="assistant-header-actions">
+            <span className="soon-pill">
+              <ShieldCheck size={13} />
+              Live · Gemini + DuckDB
+            </span>
+
+            <button
+              type="button"
+              className="assistant-new-chat"
+              onClick={startNewConversation}
+              disabled={sending || (messages.length === 0 && !draft && !error)}
+            >
+              New conversation
+            </button>
+          </div>
         </div>
 
         {messages.length === 0 ? (
@@ -1060,5 +1108,5 @@ export default function App() {
     {active === 'payments' && <Payments/>}
     {active === 'accounts' && <Accounts/>}
     {active === 'assistant' && <Assistant/>}
-  </motion.div></AnimatePresence></main><footer className="footer"><span>InsightForge <span className="footer-spark">✳</span> Banking intelligence, beautifully clear.</span><span>V3 UI Preview · Synthetic data only</span></footer></div></div>
+  </motion.div></AnimatePresence></main><footer className="footer"><span>InsightForge <span className="footer-spark">✳</span> Banking intelligence, beautifully clear.</span><span>Synthetic data only · Local development</span></footer></div></div>
 }
