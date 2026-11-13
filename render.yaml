@@ -1,0 +1,25 @@
+# Optional Render Blueprint for a $0 web service.
+# No persistent disk, database, worker, or paid instance.
+# This blueprint creates a new service when applied; review before approval.
+services:
+  - type: web
+    name: insightforge-ai-demo
+    runtime: docker
+    plan: free
+    rootDir: day-04-insightforge-agent
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: INSIGHTFORGE_ENV
+        value: production
+      - key: INSIGHTFORGE_DEMO_DATA
+        value: "true"
+      - key: INSIGHTFORGE_ENABLE_CHAT
+        value: "false"
+      - key: INSIGHTFORGE_ACCESS_USERNAME
+        sync: false
+      - key: INSIGHTFORGE_ACCESS_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
