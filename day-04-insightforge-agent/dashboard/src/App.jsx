@@ -8,31 +8,6 @@ import {
   FileDown, LockKeyhole, Search, ShieldCheck, Sparkles, WalletCards, Zap,
 } from 'lucide-react'
 
-// Verified synthetic dataset snapshot. These are static preview values,
-// not a live API connection. We connect the Python backend in the next stage.
-const dataset = {
-  transactions: 5078345,
-  accounts: 518581,
-  labels: 5177,
-  currencies: 15,
-  sendingBankValues: 30528,
-  firstDate: '01 Sep 2022',
-  lastDate: '18 Sep 2022',
-}
-
-const payments = [
-  { format: 'Cheque', currency: 'USD', count: 708957, labels: 120, rate: 0.017 },
-  { format: 'Credit card', currency: 'USD', count: 506535, labels: 90, rate: 0.018 },
-  { format: 'Cheque', currency: 'EUR', count: 441177, labels: 91, rate: 0.021 },
-  { format: 'Credit card', currency: 'EUR', count: 315559, labels: 52, rate: 0.016 },
-  { format: 'ACH', currency: 'USD', count: 240028, labels: 1663, rate: 0.693 },
-  { format: 'Cash', currency: 'USD', count: 187884, labels: 39, rate: 0.021 },
-  { format: 'Reinvestment', currency: 'USD', count: 186391, labels: 0, rate: 0 },
-  { format: 'Bitcoin', currency: 'BTC', count: 146013, labels: 56, rate: 0.038 },
-  { format: 'ACH', currency: 'EUR', count: 140956, labels: 1206, rate: 0.856 },
-  { format: 'Reinvestment', currency: 'EUR', count: 116658, labels: 0, rate: 0 },
-]
-
 const fmt = n => new Intl.NumberFormat('en-US').format(n)
 const nav = [
   { id: 'overview', label: 'Overview', Icon: LayoutDashboard },
@@ -48,7 +23,7 @@ function BrandMark() {
   return <div className="brand-mark" aria-hidden="true"><span className="mark-core">✳</span></div>
 }
 
-function Sidebar({ active, setActive }) {
+function Sidebar({ active, setActive, workspace }) {
   return (
     <aside className="sidebar">
       <div className="brand" onClick={() => setActive('overview')} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setActive('overview')}>
@@ -67,20 +42,20 @@ function Sidebar({ active, setActive }) {
       <div className="sidebar-note">
         <div className="note-icon"><ShieldCheck size={18} /></div>
         <strong>Built with clarity.</strong>
-        <p>Explore banking patterns with traceable, synthetic data.</p>
-        <span className="note-status"><span className="status-dot" /> Local workspace</span>
+        <p>Explore transaction records through reproducible SQL analysis.</p>
+        <span className="note-status"><span className="status-dot" /> {workspace?.dataset_ready ? 'Data connected' : 'Dataset unavailable'}</span>
       </div>
       <div className="sidebar-footer"><div className="avatar">IF</div><div><strong>InsightForge</strong><span>Developer workspace</span></div><ChevronDown size={15} /></div>
     </aside>
   )
 }
 
-function Header({ active }) {
+function Header({ active, workspace }) {
   const current = nav.find(item => item.id === active)
   return (
     <header className="topbar">
       <div className="breadcrumb"><span>Workspace</span><span className="slash">/</span><strong>{current?.label}</strong></div>
-      <div className="topbar-right"><span className="preview-label"><span className="status-dot" /> SYNTHETIC DATA</span><span className="topbar-divider" /><div className="header-avatar">IF</div></div>
+      <div className="topbar-right"><span className="preview-label"><span className="status-dot" /> {workspace?.dataset_type === 'generated_example' ? 'GENERATED EXAMPLE DATA' : workspace?.dataset_ready ? 'CONFIGURED DATASET' : 'DATA SOURCE OFFLINE'}</span><span className="topbar-divider" /><div className="header-avatar">IF</div></div>
     </header>
   )
 }
@@ -219,12 +194,12 @@ function Hero({ onExplore, reduceMotion }) {
     <div className="hero-copy">
       <span className="hero-kicker"><span className="star">✳</span> THE BANKING INTELLIGENCE WORKSPACE</span>
       <h1>Complex data.<br /><span>Beautifully clear.</span></h1>
-      <p>A thoughtful space to understand transactions, discover patterns, and investigate with AI-powered clarity.</p>
+      <p>Analyze transaction patterns, investigate individual accounts, and export findings from the connected dataset.</p>
       <button className="primary-btn" onClick={onExplore}>Explore insights <ArrowUpRight size={18} /></button>
     </div>
     <div className="hero-visual" aria-hidden="true">
       <div className="floating-orbit orbit-outer" /><div className="floating-orbit orbit-inner" />
-      <div className="glass-chip glass-top"><span className="chip-icon blue"><Activity size={16}/></span><span><b>Data connected</b><small>Synthetic dataset</small></span><Check size={15} className="chip-check"/></div>
+      <div className="glass-chip glass-top"><span className="chip-icon blue"><Activity size={16}/></span><span><b>Source-backed queries</b><small>DuckDB-powered analysis</small></span><Check size={15} className="chip-check"/></div>
       <div className="visual-core"><div className="core-inner"><span>✳</span></div></div>
       <div className="glass-chip glass-bottom"><span className="chip-icon violet"><BarChart3 size={16}/></span><span><b>3 banking tools</b><small>Ready to investigate</small></span><span className="signal-bars"><i/><i/><i/></span></div>
       <div className="orb orb-a"/><div className="orb orb-b"/><div className="orb orb-c"/>
@@ -466,41 +441,44 @@ function PaymentChart({ compact = false }) {
 }
 
 function AccountSnapshot({ onExplore }) {
-  return <div className="surface account-card"><div className="card-heading"><div><span className="overline">ACCOUNT SPOTLIGHT</span><h3>Follow the flow.</h3><p>A featured example from the synthetic dataset.</p></div><span className="circle-action"><ArrowUpRight size={18}/></span></div>
-    <div className="account-identity"><span className="account-avatar"><WalletCards size={22} /></span><div><strong>8000F4580</strong><span>Bank 3208</span></div><span className="synthetic-tag">Synthetic</span></div>
-    <div className="account-flow"><div className="flow-stat"><span className="circle-icon"><ArrowDownLeft size={17}/></span><strong>0</strong><span>Incoming</span></div><div className="flow-rule"><span/><span/><span/></div><div className="flow-stat"><span className="circle-icon light"><Outbound size={17}/></span><strong>3</strong><span>Outgoing</span></div></div>
-    <div className="account-bottom"><span><ShieldCheck size={16}/> 0 synthetic labels</span><button onClick={onExplore}>View investigation <ArrowRight size={15}/></button></div>
+  return <div className="surface account-card">
+    <div className="card-heading"><div><span className="overline">ACCOUNT EXPLORER</span><h3>Investigate by identifier.</h3><p>Run a query against the connected transaction records and export an evidence-backed report.</p></div><span className="circle-action"><Search size={18}/></span></div>
+    <div className="account-bottom"><span><Database size={16}/> Source-backed lookups</span><button onClick={onExplore}>Open investigation <ArrowRight size={15}/></button></div>
   </div>
 }
-
-function InsightNote() {
-  return <div className="insight-strip"><span className="insight-bubble"><Sparkles size={19}/></span><div><strong>A pattern worth exploring</strong><p>ACH groups in EUR and USD have higher synthetic label percentages than cheque or credit card groups in this snapshot. These labels are not evidence of real-world wrongdoing.</p></div><span className="insight-mark">INSIGHT 01</span></div>
+function InsightNote({ workspace }) {
+  const description = workspace?.dataset_type === 'generated_example'
+    ? 'Generated example records are loaded. Use these for workflow demonstrations, not real-world banking statistics.'
+    : workspace?.dataset_ready
+      ? 'Metrics are calculated from the configured files. Verify the source and coverage before drawing conclusions.'
+      : 'No data source is available. Configure a dataset to enable analysis.'
+  return <div className="insight-strip"><span className="insight-bubble"><Database size={19}/></span><div><strong>Data source and provenance</strong><p>{description}</p></div><span className="insight-mark">SOURCE</span></div>
 }
 
-function Overview({ go, reduceMotion }) {
+function Overview({ go, reduceMotion, workspace }) {
   return <div className="page page-overview">
     <Hero onExplore={() => go('payments')} reduceMotion={reduceMotion}/>
-    <div className="section-gap"><SectionTitle kicker="AT A GLANCE" title="Your data, in perspective." subtitle="A verified snapshot of the synthetic IBM AML dataset." /></div>
+    <div className="section-gap"><SectionTitle kicker="AT A GLANCE" title="Transaction overview" subtitle="Live statistics retrieved from the active data source." /></div>
     <MetricGrid reduceMotion={reduceMotion}/>
     <div className="analysis-grid"><PaymentChart compact/><AccountSnapshot onExplore={() => go('accounts')}/></div>
-    <InsightNote />
-    <div className="page-footnote"><ShieldCheck size={15}/> Overview metrics and payment charts use live DuckDB queries. The featured account is a static example; use Account Investigation for live account lookups.</div>
+    <InsightNote workspace={workspace} />
+    <div className="page-footnote"><ShieldCheck size={15}/> Overview metrics, charts, and investigations are derived from the configured data source. This tool does not predict fraud.</div>
   </div>
 }
 
 function Payments() {
   return <div className="page detail-page">
-    <SectionTitle kicker="PAYMENT INTELLIGENCE" title="Understand every pattern." subtitle="Compare transaction volumes and synthetic label rates across payment groups." side={<span className="date-pill"><Database size={15}/> 10 verified groups</span>}/>
-    <div className="focus-banner"><div className="focus-icon"><Zap size={23}/></div><div><strong>Where synthetic labels concentrate</strong><p>ACH · EUR shows 0.856% labeled transactions; ACH · USD shows 0.693%. Compare against other groups using the switch below.</p></div><div className="focus-number">0.856%<span>ACH · EUR</span></div></div>
+    <SectionTitle kicker="PAYMENT INTELLIGENCE" title="Payment patterns" subtitle="Compare transaction volumes and annotation rates by payment format and currency." side={<span className="date-pill"><Database size={15}/> Query results</span>}/>
+    <div className="focus-banner"><div className="focus-icon"><BarChart3 size={23}/></div><div><strong>Explore the underlying distribution</strong><p>Switch between transaction volume and annotation rate, then filter payment groups. Results come from DuckDB, not a prewritten headline.</p></div></div>
     <PaymentChart />
-    <div className="disclaimer"><ShieldCheck size={17}/><span>Label percentages are based on generated data. They do not represent real-world fraud probabilities and must not be compared across currencies as monetary amounts.</span></div>
+    <div className="disclaimer"><ShieldCheck size={17}/><span>Dataset labels are annotations, not verified crimes or model predictions. Group percentages do not establish real-world risk or causality.</span></div>
   </div>
 }
 
 
 function Accounts() {
-  const [bankId, setBankId] = useState('3208')
-  const [accountNumber, setAccountNumber] = useState('8000F4580')
+  const [bankId, setBankId] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -659,7 +637,7 @@ function Accounts() {
             <h3>Find the full picture.</h3>
             <p>
               Enter a bank identifier and account number to
-              investigate transactions in the synthetic dataset.
+              investigate transactions from your connected dataset.
             </p>
           </div>
 
@@ -733,7 +711,7 @@ function Accounts() {
           <span className="account-spinner" />
           <div>
             <strong>Analyzing transactions</strong>
-            <p>Querying the synthetic banking dataset through DuckDB.</p>
+            <p>Querying transaction records through DuckDB.</p>
           </div>
         </div>
       )}
@@ -743,8 +721,7 @@ function Accounts() {
           <div className="account-empty-symbol">✳</div>
           <h3>Every account tells a story.</h3>
           <p>
-            The sample account is prefilled.
-            Select Investigate to explore its real transaction activity.
+            Enter a bank ID and account number from your data, then select Investigate to retrieve matching records.
           </p>
         </div>
       )}
@@ -759,10 +736,10 @@ function Accounts() {
           <div className="account-hero surface">
             <div className="account-hero-head">
               <span className="overline">
-                LIVE INVESTIGATION RESULTS
+                ACCOUNT INVESTIGATION RESULTS
               </span>
               <span className="synthetic-tag">
-                Synthetic data
+                Dataset records
               </span>
             </div>
 
@@ -810,20 +787,20 @@ function Accounts() {
               <strong>
                 {result.total_transactions === 0
                   ? 'No matching transactions found'
-                  : `${fmt(result.labeled_transactions)} synthetic laundering labels`}
+                  : `${fmt(result.labeled_transactions)} dataset label annotations`}
               </strong>
 
               <p>
                 {result.total_transactions === 0
                   ? 'No transactions matched this bank and account combination in the available dataset. This does not establish whether the account exists elsewhere.'
-                  : 'These counts reflect the available synthetic transaction records. Labels are not proof of real-world criminal activity, and zero labels do not establish that an account is safe.'}
+                  : 'Counts reflect the loaded records. Annotation labels do not prove wrongdoing, and no labels do not establish that an account is safe.'}
               </p>
             </div>
           </div>
           <div className="account-report-actions surface">
             <div className="account-report-copy">
               <strong>Download investigation report</strong>
-              <p>Evidence-backed PDF · Synthetic data only</p>
+              <p>Evidence-backed PDF · Connected dataset</p>
             </div>
             <button
               type="button"
@@ -858,9 +835,9 @@ function Accounts() {
 }
 
 const suggestions = [
-  'Summarize the banking dataset',
-  'Compare payment label rates',
-  'Investigate account 8000F4580 at bank 3208',
+  'What date range and volume does this dataset cover?',
+  'Compare payment formats by transaction volume',
+  'Which payment groups have the highest annotation rates?',
 ]
 
 const TOOL_LABELS = {
@@ -869,7 +846,7 @@ const TOOL_LABELS = {
   investigate_account: 'Account investigation',
 }
 
-function Assistant() {
+function Assistant({ workspace }) {
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState([])
   const [sending, setSending] = useState(false)
@@ -1014,8 +991,8 @@ function Assistant() {
           <span>Find clearer answers.</span>
         </h1>
         <p>
-          Your AI intelligence agent, connected to real synthetic
-          banking data.
+          A tool-using analytics assistant. Findings are retrieved from approved
+          Python queries against the connected data source.
         </p>
       </div>
 
@@ -1029,7 +1006,7 @@ function Assistant() {
           <div className="assistant-header-actions">
             <span className="soon-pill">
               <ShieldCheck size={13} />
-              Live · Gemini + DuckDB
+              {workspace?.ai_chat_ready ? 'Gemini configured' : 'AI chat not configured'}
             </span>
 
             <button
@@ -1061,6 +1038,7 @@ function Assistant() {
                   key={suggestion}
                   type="button"
                   onClick={() => setDraft(suggestion)}
+                  disabled={!workspace?.ai_chat_ready}
                 >
                   {suggestion}
                   <ArrowUpRight size={15} />
@@ -1150,6 +1128,11 @@ function Assistant() {
           </div>
         )}
 
+        {!workspace?.ai_chat_ready && (
+          <div className="assistant-chat-error" role="status">
+            AI chat is not enabled on this deployment. Configure GEMINI_API_KEY and INSIGHTFORGE_ENABLE_CHAT=true in your server environment to activate it.
+          </div>
+        )}
         {error && (
           <div className="assistant-chat-error" role="alert">
             {error}
@@ -1166,14 +1149,14 @@ function Assistant() {
             onChange={event => setDraft(event.target.value)}
             placeholder="Ask a banking question…"
             maxLength={2000}
-            disabled={sending}
+            disabled={sending || !workspace?.ai_chat_ready}
             required
           />
 
           <button
             type="submit"
             aria-label="Send message"
-            disabled={sending || !draft.trim()}
+            disabled={sending || !draft.trim() || !workspace?.ai_chat_ready}
           >
             <ArrowUpRight size={19} />
           </button>
@@ -1181,9 +1164,8 @@ function Assistant() {
 
         <p className="composer-caption">
           <LockKeyhole size={13} />
-          Gemini key stays on your Python server.
+          Gemini credentials remain on your Python server.
           Follow-up questions use recent conversation context.
-          Synthetic data only.
         </p>
       </div>
     </div>
@@ -1193,12 +1175,21 @@ function Assistant() {
 
 export default function App() {
   const [active, setActive] = useState('overview')
+  const [workspace, setWorkspace] = useState(null)
   const reduceMotion = useReducedMotion()
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/workspace', { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Workspace unavailable'); return response.json() })
+      .then(setWorkspace)
+      .catch(() => setWorkspace(null))
+    return () => controller.abort()
+  }, [])
   function changePage(page) { setActive(page); window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }) }
-  return <div className="app-shell"><Sidebar active={active} setActive={changePage}/><div className="main-shell"><Header active={active}/><main><AnimatePresence mode="wait"><motion.div key={active} {...(reduceMotion ? {} : fadeUp)} transition={{ duration: .42, ease: easing }}>
-    {active === 'overview' && <Overview go={changePage} reduceMotion={reduceMotion} />}
+  return <div className="app-shell"><Sidebar active={active} setActive={changePage} workspace={workspace}/><div className="main-shell"><Header active={active} workspace={workspace}/><main><AnimatePresence mode="wait"><motion.div key={active} {...(reduceMotion ? {} : fadeUp)} transition={{ duration: .42, ease: easing }}>
+    {active === 'overview' && <Overview go={changePage} reduceMotion={reduceMotion} workspace={workspace} />}
     {active === 'payments' && <Payments/>}
     {active === 'accounts' && <Accounts/>}
-    {active === 'assistant' && <Assistant/>}
-  </motion.div></AnimatePresence></main><footer className="footer"><span>InsightForge <span className="footer-spark">✳</span> Banking intelligence, beautifully clear.</span><span>Synthetic data only · Local development</span></footer></div></div>
+    {active === 'assistant' && <Assistant workspace={workspace}/>}
+  </motion.div></AnimatePresence></main><footer className="footer"><span>InsightForge <span className="footer-spark">✳</span> Banking intelligence, beautifully clear.</span><span>{workspace?.dataset_type === 'generated_example' ? 'Generated example records · Portfolio workspace' : workspace?.dataset_ready ? 'Connected dataset · Transaction analytics' : 'Dataset unavailable'}</span></footer></div></div>
 }

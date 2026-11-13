@@ -13,7 +13,7 @@ from report_service import generate_account_report
 from chat_security import protect_chat_request
 from access_control import require_production_access
 
-from tool_registry import execute_tool
+from tool_registry import execute_tool, TRANSACTIONS, ACCOUNTS
 from typing import Literal
 from pydantic import field_validator
 
@@ -39,6 +39,23 @@ def health():
     return {
         "status": "ok",
         "service": "insightforge-api",
+    }
+
+
+@app.get("/api/workspace")
+def workspace_status():
+    """Provide the UI with source and capability facts, never credentials."""
+    configured_demo = os.getenv("INSIGHTFORGE_DEMO_DATA", "false").strip().lower() == "true"
+    available = TRANSACTIONS.is_file() and ACCOUNTS.is_file()
+    production = os.getenv("INSIGHTFORGE_ENV", "development").strip().lower() == "production"
+    chat_enabled = not production or os.getenv(
+        "INSIGHTFORGE_ENABLE_CHAT", "false"
+    ).strip().lower() == "true"
+    return {
+        "dataset_ready": available,
+        "dataset_type": ("generated_example" if configured_demo else
+                         "configured_dataset" if available else "unavailable"),
+        "ai_chat_ready": bool(chat_enabled and os.getenv("GEMINI_API_KEY", "").strip()),
     }
 
 
