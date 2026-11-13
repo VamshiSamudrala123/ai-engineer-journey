@@ -199,7 +199,7 @@ function Hero({ onExplore, reduceMotion }) {
     </div>
     <div className="hero-visual" aria-hidden="true">
       <div className="floating-orbit orbit-outer" /><div className="floating-orbit orbit-inner" />
-      <div className="glass-chip glass-top"><span className="chip-icon blue"><Activity size={16}/></span><span><b>Data connected</b><small>DuckDB-powered analysis</small></span><Check size={15} className="chip-check"/></div>
+      <div className="glass-chip glass-top"><span className="chip-icon blue"><Activity size={16}/></span><span><b>Source-backed queries</b><small>DuckDB-powered analysis</small></span><Check size={15} className="chip-check"/></div>
       <div className="visual-core"><div className="core-inner"><span>✳</span></div></div>
       <div className="glass-chip glass-bottom"><span className="chip-icon violet"><BarChart3 size={16}/></span><span><b>3 banking tools</b><small>Ready to investigate</small></span><span className="signal-bars"><i/><i/><i/></span></div>
       <div className="orb orb-a"/><div className="orb orb-b"/><div className="orb orb-c"/>
@@ -1038,6 +1038,7 @@ function Assistant({ workspace }) {
                   key={suggestion}
                   type="button"
                   onClick={() => setDraft(suggestion)}
+                  disabled={!workspace?.ai_chat_ready}
                 >
                   {suggestion}
                   <ArrowUpRight size={15} />
@@ -1127,6 +1128,11 @@ function Assistant({ workspace }) {
           </div>
         )}
 
+        {!workspace?.ai_chat_ready && (
+          <div className="assistant-chat-error" role="status">
+            AI chat is not enabled on this deployment. Configure GEMINI_API_KEY and INSIGHTFORGE_ENABLE_CHAT=true in your server environment to activate it.
+          </div>
+        )}
         {error && (
           <div className="assistant-chat-error" role="alert">
             {error}
@@ -1143,14 +1149,14 @@ function Assistant({ workspace }) {
             onChange={event => setDraft(event.target.value)}
             placeholder="Ask a banking question…"
             maxLength={2000}
-            disabled={sending}
+            disabled={sending || !workspace?.ai_chat_ready}
             required
           />
 
           <button
             type="submit"
             aria-label="Send message"
-            disabled={sending || !draft.trim()}
+            disabled={sending || !draft.trim() || !workspace?.ai_chat_ready}
           >
             <ArrowUpRight size={19} />
           </button>
